@@ -21,10 +21,9 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script_stop: true   # abort on the first failing command
           script: |
             set -euo pipefail
-            cd "${{ secrets.DEPLOY_PATH }}"
+            cd ~/apps/oracle_instance
 
             echo "==> Pulling latest code"
             git pull --ff-only
