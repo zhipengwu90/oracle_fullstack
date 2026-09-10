@@ -150,6 +150,25 @@ STORAGES = {
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ---------------------------------------------------------------------------
+# Logging — send request errors (incl. 500 tracebacks) to stdout so they
+# show up in `docker compose logs backend`, even with DEBUG=False.
+# ---------------------------------------------------------------------------
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {'format': '[{asctime}] {levelname} {name}: {message}', 'style': '{'},
+    },
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler', 'formatter': 'verbose'},
+    },
+    'root': {'handlers': ['console'], 'level': 'INFO'},
+    'loggers': {
+        'django.request': {'handlers': ['console'], 'level': 'ERROR', 'propagate': False},
+    },
+}
+
+# ---------------------------------------------------------------------------
 # Django REST Framework
 # ---------------------------------------------------------------------------
 REST_FRAMEWORK = {

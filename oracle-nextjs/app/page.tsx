@@ -22,6 +22,9 @@ export default async function Home() {
 
   return (
     <main className="mx-auto max-w-2xl p-8">
+      <div>
+        this is the test page for the oracle-nextjs project. it fetches data from the django backend and displays it in a table.
+      </div>
       <h1 className="mb-1 text-2xl font-semibold">my_bank.test</h1>
       <p className="mb-6 text-sm text-gray-500">
         Data read from the <code>test</code> table in the <code>my_bank</code>{" "}
