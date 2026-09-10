@@ -41,5 +41,5 @@ jobs:
             echo "==> Status"
             docker compose ps
 
-            echo "==> Health check"
-            curl -fsS http://localhost/api/health/ && echo
+            echo "==> Health check (backend container via loopback)"
+            curl -fsS http://127.0.0.1:8000/api/health/ && echo

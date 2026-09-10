@@ -180,6 +180,10 @@ CSRF_TRUSTED_ORIGINS = env.list('DJANGO_CSRF_TRUSTED_ORIGINS', default=[])
 # Security (only matters when DEBUG=False, i.e. production)
 # ---------------------------------------------------------------------------
 if not DEBUG:
+    # nginx terminates TLS and proxies plain HTTP to the container; this
+    # header (set by nginx: proxy_set_header X-Forwarded-Proto $scheme)
+    # tells Django the original request was HTTPS.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_SSL_REDIRECT = env.bool('DJANGO_SECURE_SSL_REDIRECT', default=False)
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True

@@ -20,8 +20,11 @@ services:
       # Lets the container resolve the Docker host's own IP, so it can
       # reach PostgreSQL running directly on the Oracle VM (not in Docker).
       - "host.docker.internal:host-gateway"
-    expose:
-      - "8000"
+    # Bound to loopback only: the host's own nginx (serving app.wuapp.app
+    # etc.) reverse-proxies to these. Nothing is exposed to the internet
+    # directly by Docker.
+    ports:
+      - "127.0.0.1:8000:8000"
     networks:
       - appnet
 
@@ -33,23 +36,8 @@ services:
     environment:
       # Server-side fetches in Next.js talk to the backend container directly.
       BACKEND_URL: http://backend:8000
-    expose:
-      - "3000"
-    networks:
-      - appnet
-
-  nginx:
-    image: nginx:alpine
-    restart: unless-stopped
     ports:
-      - "80:80"
-      # - "443:443"   # enable once TLS certs are set up (see README)
-    volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-      # - ./certbot/conf:/etc/letsencrypt:ro
-    depends_on:
-      - backend
-      - frontend
+      - "127.0.0.1:3000:3000"
     networks:
       - appnet
 
