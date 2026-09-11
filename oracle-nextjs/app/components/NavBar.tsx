@@ -43,14 +43,12 @@ export default async function NavBar() {
               </div>
             </>
           ) : (
-            // Django's existing session-auth login page, proxied same-origin:
-            // nginx in production, next.config.ts rewrites() in local dev.
-            <a
-              href="/admin/login/?next=/"
+            <Link
+              href="/login"
               className="rounded-md bg-gray-900 px-4 py-1.5 font-medium text-white hover:bg-gray-700"
             >
               Log in
-            </a>
+            </Link>
           )}
         </div>
       </nav>

@@ -1,5 +1,6 @@
-from django.contrib.auth import logout as django_logout
+from django.contrib.auth import authenticate, login as django_login, logout as django_logout
 from django.db import connection
+from django.middleware.csrf import get_token
 from rest_framework import generics
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -40,10 +41,44 @@ def whoami(request):
     logged in. Used by the Next.js middleware to gate protected pages -
     it forwards the browser's Cookie header here on every protected
     request. Always 200; the "authenticated" field is what callers check.
+
+    Note: this is called server-to-server (NavBar/middleware fetch it
+    directly from Node, not the browser), so anything it sets via
+    Set-Cookie never reaches the browser - that's why get_token() for the
+    csrftoken cookie lives in login_view instead, which the browser calls
+    directly through the proxy.
     """
     if request.user.is_authenticated:
         return Response({"authenticated": True, "username": request.user.username})
     return Response({"authenticated": False})
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_view(request):
+    """
+    POST /api/login/ {"username": ..., "password": ...} -> logs the session
+    in. No CSRF token required here: DRF's SessionAuthentication only
+    enforces CSRF once there's already a logged-in user to protect, and
+    there isn't one yet at the point someone is trying to log in.
+
+    get_token() guarantees this response sets the csrftoken cookie. This
+    call is a genuine browser -> (Next.js rewrite/nginx proxy) -> Django
+    round trip, so unlike whoami's server-to-server fetch (whose Set-Cookie
+    never reaches the browser), this Set-Cookie *does* land in the browser
+    - giving LogoutButton a csrftoken cookie to send afterwards.
+    """
+    get_token(request)
+    username = request.data.get('username', '')
+    password = request.data.get('password', '')
+    user = authenticate(request, username=username, password=password)
+    if user is None:
+        return Response(
+            {"authenticated": False, "error": "Invalid username or password."},
+            status=400,
+        )
+    django_login(request, user)
+    return Response({"authenticated": True, "username": user.username})
 
 
 @api_view(['POST'])
