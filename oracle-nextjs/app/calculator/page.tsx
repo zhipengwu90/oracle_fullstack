@@ -1,18 +1,18 @@
-type TestRow = { id: number; data: string | null };
+type MortgageRow = { id: number; data: string | null };
 
 // Backend base URL for server-side fetches:
 //   - local dev:  unset -> http://localhost:8000 (Django runserver)
 //   - Docker:     BACKEND_URL=http://backend:8000 (set in docker-compose.yml)
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 
-async function getRows(): Promise<TestRow[]> {
-  const res = await fetch(`${BACKEND_URL}/api/tests/`, { cache: "no-store" });
+async function getRows(): Promise<MortgageRow[]> {
+  const res = await fetch(`${BACKEND_URL}/api/mortgages/`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Backend responded ${res.status}`);
   return res.json();
 }
 
-export default async function Home() {
-  let rows: TestRow[] = [];
+export default async function Calculator() {
+  let rows: MortgageRow[] = [];
   let error: string | null = null;
   try {
     rows = await getRows();
@@ -22,13 +22,10 @@ export default async function Home() {
 
   return (
     <main className="mx-auto max-w-2xl p-8">
-      <div>
-        this is the test page for the oracle-nextjs project. it fetches data from the django backend and displays it in a table.
-      </div>
-      <h1 className="mb-1 text-2xl font-semibold">my_bank.test</h1>
+      <h1 className="mb-1 text-2xl font-semibold">Calculator</h1>
       <p className="mb-6 text-sm text-gray-500">
-        Data read from the <code>test</code> table in the <code>my_bank</code>{" "}
-        schema, via the Django API.
+        Data read from the <code>mortgage</code> table in the{" "}
+        <code>myapp_v1</code> schema, via the Django API.
       </p>
 
       {error ? (
@@ -36,7 +33,7 @@ export default async function Home() {
           Failed to load: {error}
         </p>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-gray-500">No rows in my_bank.test yet.</p>
+        <p className="text-sm text-gray-500">No rows in myapp_v1.mortgage yet.</p>
       ) : (
         <table className="w-full border-collapse text-sm">
           <thead>

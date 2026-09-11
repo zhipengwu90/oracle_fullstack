@@ -1,9 +1,9 @@
 from rest_framework import serializers
 
-from .models import Test
+from .models import Mortgage
 
 
-class TestSerializer(serializers.ModelSerializer):
+class MortgageSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Test
+        model = Mortgage
         fields = ['id', 'data']

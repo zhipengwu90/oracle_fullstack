@@ -29,15 +29,19 @@ export default async function NavBar() {
         </Link>
 
         <div className="flex items-center gap-6 text-sm">
-          <Link href="/testPage" className="text-gray-600 hover:text-gray-900">
-            Test Page
-          </Link>
-
           {username ? (
-            <div className="flex items-center gap-3">
-              <span className="text-gray-700">Hi, {username}</span>
-              <LogoutButton />
-            </div>
+            <>
+              <Link
+                href="/calculator"
+                className="text-gray-600 hover:text-gray-900"
+              >
+                Calculator
+              </Link>
+              <div className="flex items-center gap-3">
+                <span className="text-gray-700">Hi, {username}</span>
+                <LogoutButton />
+              </div>
+            </>
           ) : (
             // Django's existing session-auth login page, proxied same-origin:
             // nginx in production, next.config.ts rewrites() in local dev.

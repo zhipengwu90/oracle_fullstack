@@ -5,8 +5,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from .models import Test
-from .serializers import TestSerializer
+from .models import Mortgage
+from .serializers import MortgageSerializer
 
 
 @api_view(['GET'])
@@ -60,9 +60,9 @@ def logout_view(request):
     return Response({"authenticated": False})
 
 
-class TestListView(generics.ListAPIView):
-    """GET /api/tests/ -> all rows from my_bank.test as a plain JSON array."""
-    queryset = Test.objects.all().order_by('id')
-    serializer_class = TestSerializer
+class MortgageListView(generics.ListAPIView):
+    """GET /api/mortgages/ -> all rows from myapp_v1.mortgage as a plain JSON array."""
+    queryset = Mortgage.objects.all().order_by('id')
+    serializer_class = MortgageSerializer
     permission_classes = [AllowAny]
     pagination_class = None

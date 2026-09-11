@@ -1,10 +1,10 @@
 from django.contrib import admin
 
-from .models import Test
+from .models import Mortgage
 
 
-@admin.register(Test)
-class TestAdmin(admin.ModelAdmin):
+@admin.register(Mortgage)
+class MortgageAdmin(admin.ModelAdmin):
     list_display = ('id', 'data')
     search_fields = ('data',)
     ordering = ('id',)
