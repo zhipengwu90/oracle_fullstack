@@ -31,6 +31,20 @@ def health_check(request):
     )
 
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def whoami(request):
+    """
+    GET /api/whoami/ -> tells the caller whether their session cookie is
+    logged in. Used by the Next.js middleware to gate protected pages -
+    it forwards the browser's Cookie header here on every protected
+    request. Always 200; the "authenticated" field is what callers check.
+    """
+    if request.user.is_authenticated:
+        return Response({"authenticated": True, "username": request.user.username})
+    return Response({"authenticated": False})
+
+
 class TestListView(generics.ListAPIView):
     """GET /api/tests/ -> all rows from my_bank.test as a plain JSON array."""
     queryset = Test.objects.all().order_by('id')
