@@ -59,9 +59,9 @@ export default async function Home() {
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center gap-14 px-6 py-20 md:flex-row-reverse md:justify-between md:gap-16 md:py-28">
       {profile.hero_image && (
-        <div className="relative w-full max-w-xs shrink-0 md:w-2/5 md:max-w-none">
+        <div className="relative w-full max-w-xs shrink-0 md:w-3/6 md:max-w-none">
           <div
-       
+            className="absolute -inset-8 -z-10 rounded-full bg-accent/20 blur-3xl"
             aria-hidden="true"
           />
           {/* eslint-disable-next-line @next/next/no-img-element -- see ProjectCard */}
@@ -78,7 +78,7 @@ export default async function Home() {
           <span className="h-1.5 w-1.5 rounded-full bg-accent" />
           {profile.role_title}
         </p>
-        <h1 className="text-4xl leading-[1.1] font-extrabold tracking-tight text-balance sm:text-5xl md:text-6xl">
+        <h1 className="text-4xl leading-[1.1] font-extrabold tracking-tight text-balance sm:text-4xl md:text-5xl">
           {profile.hero_heading}
         </h1>
         <p className="my-6 max-w-xl text-lg leading-relaxed text-foreground/70">
