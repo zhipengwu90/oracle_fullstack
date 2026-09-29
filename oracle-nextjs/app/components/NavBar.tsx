@@ -38,7 +38,16 @@ export default async function NavBar() {
   const [username, socialLinks] = await Promise.all([getUsername(), getSocialLinks()]);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-foreground/10 bg-background/80 backdrop-blur-md">
+    <header className="sticky top-0 z-40">
+      {/* Separate layer for the glass effect (not a wrapper around <nav>):
+          backdrop-blur creates a new containing block for any fixed-position
+          descendant, which broke NavLinks' mobile drawer (it was sizing
+          itself against this bar instead of the viewport). Keeping blur off
+          any ancestor of <nav> avoids that. */}
+      <div
+        className="absolute inset-0 -z-10 border-b border-foreground/10 bg-background/80 backdrop-blur-md"
+        aria-hidden="true"
+      />
       <nav className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
         <Link href="/" className="flex items-center transition-opacity hover:opacity-80">
           <Image src={logo} alt="Zhipeng Wu" className="h-9 w-auto" priority />
