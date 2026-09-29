@@ -61,7 +61,7 @@ export default async function Home() {
       {profile.hero_image && (
         <div className="relative w-full max-w-xs shrink-0 md:w-2/5 md:max-w-none">
           <div
-            className="absolute -inset-8 -z-10 rounded-full bg-accent/20 blur-3xl"
+       
             aria-hidden="true"
           />
           {/* eslint-disable-next-line @next/next/no-img-element -- see ProjectCard */}
