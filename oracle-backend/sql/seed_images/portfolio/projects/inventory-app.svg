@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" fill="none">
+  <defs>
+    <linearGradient id="invBg" x1="0" y1="0" x2="800" y2="500" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1b1b1b"/>
+      <stop offset="1" stop-color="#1b2422"/>
+    </linearGradient>
+    <linearGradient id="invPrim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#58E6D9"/>
+      <stop offset="1" stop-color="#B63E96"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="500" fill="url(#invBg)"/>
+
+  <!-- Title -->
+  <text x="60" y="70" font-family="monospace" font-size="26" font-weight="bold" fill="#ffffff">Inventory App</text>
+  <text x="60" y="98" font-family="monospace" font-size="13" fill="#ffffff60">Next.js · Supabase · TypeScript</text>
+
+  <!-- Inventory table card -->
+  <g transform="translate(60 130)">
+    <rect width="420" height="310" rx="12" fill="#2a2a2a" stroke="#ffffff18" stroke-width="1"/>
+    <text x="24" y="38" font-family="monospace" font-size="15" font-weight="bold" fill="#58E6D9">Inventory</text>
+    <!-- header -->
+    <rect x="0" y="54" width="420" height="30" fill="#58E6D915"/>
+    <text x="24" y="74" font-family="monospace" font-size="11" fill="#ffffff70">Item</text>
+    <text x="230" y="74" font-family="monospace" font-size="11" fill="#ffffff70">Stock</text>
+    <text x="320" y="74" font-family="monospace" font-size="11" fill="#ffffff70">Status</text>
+
+    <!-- rows -->
+    <g font-family="monospace" font-size="12">
+      <text x="24" y="112" fill="#ffffff90">Flour 25kg</text>
+      <text x="236" y="112" fill="#ffffff90">8</text>
+      <rect x="320" y="101" width="58" height="18" rx="9" fill="#58E6D925"/>
+      <text x="349" y="114" fill="#58E6D9" text-anchor="middle">OK</text>
+
+      <text x="24" y="146" fill="#ffffff90">Butter</text>
+      <text x="236" y="146" fill="#ffffff90">2</text>
+      <rect x="320" y="135" width="58" height="18" rx="9" fill="#B63E9630"/>
+      <text x="349" y="148" fill="#B63E96" text-anchor="middle">Low</text>
+
+      <text x="24" y="180" fill="#ffffff90">Sugar</text>
+      <text x="236" y="180" fill="#ffffff90">14</text>
+      <rect x="320" y="169" width="58" height="18" rx="9" fill="#58E6D925"/>
+      <text x="349" y="182" fill="#58E6D9" text-anchor="middle">OK</text>
+
+      <text x="24" y="214" fill="#ffffff90">Coffee Beans</text>
+      <text x="236" y="214" fill="#ffffff90">1</text>
+      <rect x="320" y="203" width="58" height="18" rx="9" fill="#B63E9630"/>
+      <text x="349" y="216" fill="#B63E96" text-anchor="middle">Low</text>
+
+      <text x="24" y="248" fill="#ffffff90">Milk 2L</text>
+      <text x="236" y="248" fill="#ffffff90">22</text>
+      <rect x="320" y="237" width="58" height="18" rx="9" fill="#58E6D925"/>
+      <text x="349" y="250" fill="#58E6D9" text-anchor="middle">OK</text>
+    </g>
+    <line x1="0" y1="124" x2="420" y2="124" stroke="#ffffff10"/>
+    <line x1="0" y1="158" x2="420" y2="158" stroke="#ffffff10"/>
+    <line x1="0" y1="192" x2="420" y2="192" stroke="#ffffff10"/>
+    <line x1="0" y1="226" x2="420" y2="226" stroke="#ffffff10"/>
+
+    <!-- supabase tag -->
+    <g transform="translate(24 270)">
+      <circle cx="8" cy="8" r="6" fill="#58E6D9"/>
+      <text x="22" y="12" font-family="monospace" font-size="11" fill="#ffffff60">synced with Supabase</text>
+    </g>
+  </g>
+
+  <!-- Arrow generate -->
+  <g transform="translate(498 286)">
+    <line x1="0" y1="0" x2="40" y2="0" stroke="url(#invPrim)" stroke-width="2.5"/>
+    <polygon points="40,-6 54,0 40,6" fill="#B63E96"/>
+    <text x="20" y="-14" font-family="monospace" font-size="10" fill="#ffffff50" text-anchor="middle">generate</text>
+  </g>
+
+  <!-- Shopping list card -->
+  <g transform="translate(560 150)">
+    <rect width="180" height="270" rx="12" fill="#2a2a2a" stroke="#B63E96" stroke-width="1.5"/>
+    <text x="20" y="36" font-family="monospace" font-size="14" font-weight="bold" fill="#B63E96">Shopping List</text>
+    <g font-family="monospace" font-size="12" fill="#ffffff90">
+      <rect x="20" y="58" width="14" height="14" rx="3" fill="none" stroke="#58E6D9" stroke-width="1.5"/>
+      <path d="M 23 65 L 26 68 L 31 61" stroke="#58E6D9" stroke-width="1.5" fill="none"/>
+      <text x="42" y="69">Butter x5</text>
+
+      <rect x="20" y="86" width="14" height="14" rx="3" fill="none" stroke="#58E6D9" stroke-width="1.5"/>
+      <path d="M 23 93 L 26 96 L 31 89" stroke="#58E6D9" stroke-width="1.5" fill="none"/>
+      <text x="42" y="97">Coffee x3</text>
+
+      <rect x="20" y="114" width="14" height="14" rx="3" fill="none" stroke="#ffffff40" stroke-width="1.5"/>
+      <text x="42" y="125">Flour x2</text>
+
+      <rect x="20" y="142" width="14" height="14" rx="3" fill="none" stroke="#ffffff40" stroke-width="1.5"/>
+      <text x="42" y="153">Yeast x4</text>
+
+      <rect x="20" y="170" width="14" height="14" rx="3" fill="none" stroke="#ffffff40" stroke-width="1.5"/>
+      <text x="42" y="181">Eggs x12</text>
+    </g>
+    <rect x="20" y="214" width="140" height="34" rx="8" fill="url(#invPrim)"/>
+    <text x="90" y="236" font-family="monospace" font-size="12" font-weight="bold" fill="#1b1b1b" text-anchor="middle">Export List</text>
+  </g>
+</svg>

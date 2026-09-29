@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500">
+  <rect width="800" height="500" fill="#1b1b1b"/>
+  <!-- Grid lines -->
+  <line x1="0" y1="125" x2="800" y2="125" stroke="#ffffff10" stroke-width="1"/>
+  <line x1="0" y1="250" x2="800" y2="250" stroke="#ffffff10" stroke-width="1"/>
+  <line x1="0" y1="375" x2="800" y2="375" stroke="#ffffff10" stroke-width="1"/>
+  <line x1="200" y1="0" x2="200" y2="500" stroke="#ffffff10" stroke-width="1"/>
+  <line x1="400" y1="0" x2="400" y2="500" stroke="#ffffff10" stroke-width="1"/>
+  <line x1="600" y1="0" x2="600" y2="500" stroke="#ffffff10" stroke-width="1"/>
+
+  <!-- Route pills -->
+  <rect x="60" y="175" width="100" height="32" rx="16" fill="#B63E9630" stroke="#B63E96" stroke-width="1.5"/>
+  <text x="110" y="196" font-family="monospace" font-size="12" fill="#B63E96" text-anchor="middle">Population</text>
+
+  <rect x="175" y="175" width="60" height="32" rx="16" fill="#58E6D930" stroke="#58E6D9" stroke-width="1.5"/>
+  <text x="205" y="196" font-family="monospace" font-size="12" fill="#58E6D9" text-anchor="middle">CU</text>
+
+  <rect x="250" y="175" width="65" height="32" rx="16" fill="#B63E9630" stroke="#B63E96" stroke-width="1.5"/>
+  <text x="282" y="196" font-family="monospace" font-size="12" fill="#B63E96" text-anchor="middle">SMU</text>
+
+  <rect x="330" y="175" width="75" height="32" rx="16" fill="#58E6D930" stroke="#58E6D9" stroke-width="1.5"/>
+  <text x="367" y="196" font-family="monospace" font-size="12" fill="#58E6D9" text-anchor="middle">Indicator</text>
+
+  <rect x="420" y="175" width="65" height="32" rx="16" fill="#B63E9630" stroke="#B63E96" stroke-width="1.5"/>
+  <text x="452" y="196" font-family="monospace" font-size="12" fill="#B63E96" text-anchor="middle">PFMA</text>
+
+  <rect x="500" y="175" width="65" height="32" rx="16" fill="#58E6D930" stroke="#58E6D9" stroke-width="1.5"/>
+  <text x="532" y="196" font-family="monospace" font-size="12" fill="#58E6D9" text-anchor="middle">Status</text>
+
+  <!-- Django + PostgreSQL architecture -->
+  <rect x="120" y="255" width="200" height="90" rx="10" fill="#2a2a2a" stroke="#58E6D9" stroke-width="2"/>
+  <text x="220" y="292" font-family="monospace" font-size="14" font-weight="bold" fill="#58E6D9" text-anchor="middle">Django</text>
+  <text x="220" y="312" font-family="monospace" font-size="11" fill="#ffffff60" text-anchor="middle">REST API · OpenAPI</text>
+  <text x="220" y="330" font-family="monospace" font-size="11" fill="#ffffff60" text-anchor="middle">Upload · Export · Browse</text>
+
+  <!-- Arrow -->
+  <line x1="320" y1="300" x2="380" y2="300" stroke="#ffffff40" stroke-width="1.5"/>
+  <polygon points="380,295 393,300 380,305" fill="#ffffff40"/>
+
+  <rect x="393" y="255" width="200" height="90" rx="10" fill="#2a2a2a" stroke="#B63E96" stroke-width="2"/>
+  <text x="493" y="292" font-family="monospace" font-size="14" font-weight="bold" fill="#B63E96" text-anchor="middle">PostgreSQL</text>
+  <text x="493" y="312" font-family="monospace" font-size="11" fill="#ffffff60" text-anchor="middle">Salmon Data Packages</text>
+  <text x="493" y="330" font-family="monospace" font-size="11" fill="#ffffff60" text-anchor="middle">Versioned Assessments</text>
+
+  <!-- Title -->
+  <text x="400" y="88" font-family="monospace" font-size="20" font-weight="bold" fill="#ffffff" text-anchor="middle">Salmon Population Summary</text>
+  <text x="400" y="112" font-family="monospace" font-size="20" font-weight="bold" fill="#ffffff" text-anchor="middle">Repository (SPSR)</text>
+  <text x="400" y="148" font-family="monospace" font-size="12" fill="#ffffff60" text-anchor="middle">Django · PostgreSQL · Python · REST API</text>
+
+  <!-- DFO label -->
+  <rect x="310" y="390" width="180" height="30" rx="6" fill="#B63E9620"/>
+  <text x="400" y="410" font-family="monospace" font-size="12" fill="#B63E96" text-anchor="middle">Fisheries and Oceans Canada</text>
+</svg>

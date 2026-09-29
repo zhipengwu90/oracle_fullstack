@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 560" fill="none">
+  <defs>
+    <linearGradient id="aFrame" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a2a2a"/>
+      <stop offset="1" stop-color="#1b1b1b"/>
+    </linearGradient>
+    <linearGradient id="aSuit" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3a3a3a"/>
+      <stop offset="1" stop-color="#222"/>
+    </linearGradient>
+    <linearGradient id="aPrim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#B63E96"/>
+      <stop offset="1" stop-color="#58E6D9"/>
+    </linearGradient>
+    <radialGradient id="aGlow" cx="0.5" cy="0.4" r="0.6">
+      <stop offset="0" stop-color="#B63E96" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#B63E96" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- panel background -->
+  <rect width="500" height="560" rx="20" fill="url(#aFrame)"/>
+  <rect x="1" y="1" width="498" height="558" rx="19" stroke="#ffffff12" stroke-width="1"/>
+
+  <!-- glow behind head -->
+  <circle cx="250" cy="200" r="170" fill="url(#aGlow)"/>
+
+  <!-- accent corner brackets -->
+  <path d="M 26 60 L 26 26 L 60 26" stroke="#58E6D9" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M 474 500 L 474 534 L 440 534" stroke="#B63E96" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+  <!-- floating skill chips -->
+  <g font-family="monospace" font-size="13" font-weight="bold">
+    <g transform="translate(40 120)">
+      <rect width="92" height="30" rx="15" fill="#1b1b1b" stroke="#B63E96" stroke-width="1.5"/>
+      <text x="46" y="20" fill="#B63E96" text-anchor="middle">Python</text>
+    </g>
+    <g transform="translate(360 100)">
+      <rect width="104" height="30" rx="15" fill="#1b1b1b" stroke="#58E6D9" stroke-width="1.5"/>
+      <text x="52" y="20" fill="#58E6D9" text-anchor="middle">PostgreSQL</text>
+    </g>
+    <g transform="translate(372 240)">
+      <rect width="80" height="30" rx="15" fill="#1b1b1b" stroke="#B63E96" stroke-width="1.5"/>
+      <text x="40" y="20" fill="#B63E96" text-anchor="middle">Django</text>
+    </g>
+    <g transform="translate(42 270)">
+      <rect width="70" height="30" rx="15" fill="#1b1b1b" stroke="#58E6D9" stroke-width="1.5"/>
+      <text x="35" y="20" fill="#58E6D9" text-anchor="middle">R / ETL</text>
+    </g>
+  </g>
+
+  <!-- Professional figure (bust) -->
+  <g transform="translate(250 230)">
+    <!-- shoulders / blazer -->
+    <path d="M -120 230 Q -120 110 -60 92 L -30 86 Q 0 150 30 86 L 60 92 Q 120 110 120 230 Z" fill="url(#aSuit)"/>
+    <!-- lapels -->
+    <path d="M -30 86 L 0 188 L -16 96 Z" fill="#1a1a1a"/>
+    <path d="M 30 86 L 0 188 L 16 96 Z" fill="#1a1a1a"/>
+    <!-- shirt -->
+    <path d="M -16 96 L 0 150 L 16 96 L 0 90 Z" fill="#f5f5f5"/>
+    <!-- tie accent -->
+    <path d="M -5 100 L 5 100 L 9 160 L 0 174 L -9 160 Z" fill="url(#aPrim)"/>
+    <!-- neck -->
+    <rect x="-14" y="40" width="28" height="56" rx="10" fill="#caa07a"/>
+    <!-- head -->
+    <circle cx="0" cy="0" r="48" fill="#e0b48c"/>
+    <!-- ears -->
+    <circle cx="-47" cy="4" r="8" fill="#e0b48c"/>
+    <circle cx="47" cy="4" r="8" fill="#e0b48c"/>
+    <!-- hair -->
+    <path d="M -48 -6 Q -52 -54 0 -54 Q 52 -54 48 -6 Q 40 -34 0 -34 Q -40 -34 -48 -6 Z" fill="#1a1a1a"/>
+    <!-- glasses -->
+    <circle cx="-18" cy="2" r="13" fill="none" stroke="#1b1b1b" stroke-width="2.5"/>
+    <circle cx="18" cy="2" r="13" fill="none" stroke="#1b1b1b" stroke-width="2.5"/>
+    <line x1="-5" y1="2" x2="5" y2="2" stroke="#1b1b1b" stroke-width="2.5"/>
+    <!-- subtle smile -->
+    <path d="M -12 26 Q 0 36 12 26" stroke="#a06a45" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  </g>
+
+  <!-- name plate -->
+  <g transform="translate(110 488)">
+    <rect width="280" height="48" rx="12" fill="#1b1b1b" stroke="#ffffff18"/>
+    <text x="140" y="22" font-family="monospace" font-size="15" font-weight="bold" fill="#f5f5f5" text-anchor="middle">Zhipeng Wu</text>
+    <text x="140" y="38" font-family="monospace" font-size="11" fill="#58E6D9" text-anchor="middle">Data Technician · Full-Stack Developer</text>
+  </g>
+</svg>

@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" fill="none">
+  <defs>
+    <linearGradient id="rtBg" x1="0" y1="0" x2="800" y2="500" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1b1b1b"/>
+      <stop offset="1" stop-color="#241b22"/>
+    </linearGradient>
+    <linearGradient id="rtScan" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#58E6D9" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#58E6D9" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="rtPrim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#B63E96"/>
+      <stop offset="1" stop-color="#58E6D9"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="500" rx="0" fill="url(#rtBg)"/>
+
+  <!-- Title -->
+  <text x="60" y="80" font-family="monospace" font-size="26" font-weight="bold" fill="#ffffff">Receipt Tracker</text>
+  <text x="60" y="108" font-family="monospace" font-size="13" fill="#ffffff60">React Native · OCR · AI</text>
+
+  <!-- Phone mockup -->
+  <g transform="translate(60 140)">
+    <rect x="-6" y="-6" width="232" height="332" rx="34" fill="#000"/>
+    <rect width="220" height="320" rx="30" fill="#111"/>
+    <!-- notch -->
+    <rect x="80" y="10" width="60" height="10" rx="5" fill="#000"/>
+    <!-- receipt being scanned -->
+    <g transform="translate(48 40)">
+      <rect width="124" height="200" rx="6" fill="#f5f5f5"/>
+      <rect x="16" y="18" width="92" height="8" rx="4" fill="#1b1b1b"/>
+      <rect x="16" y="38" width="60" height="6" rx="3" fill="#bbb"/>
+      <line x1="16" y1="58" x2="108" y2="58" stroke="#ddd" stroke-width="1.5" stroke-dasharray="3 3"/>
+      <rect x="16" y="70" width="50" height="6" rx="3" fill="#999"/>
+      <rect x="86" y="70" width="22" height="6" rx="3" fill="#999"/>
+      <rect x="16" y="86" width="56" height="6" rx="3" fill="#999"/>
+      <rect x="86" y="86" width="22" height="6" rx="3" fill="#999"/>
+      <rect x="16" y="102" width="44" height="6" rx="3" fill="#999"/>
+      <rect x="86" y="102" width="22" height="6" rx="3" fill="#999"/>
+      <line x1="16" y1="122" x2="108" y2="122" stroke="#ddd" stroke-width="1.5" stroke-dasharray="3 3"/>
+      <rect x="16" y="134" width="40" height="8" rx="4" fill="#B63E96"/>
+      <rect x="80" y="134" width="28" height="8" rx="4" fill="#B63E96"/>
+      <!-- scan beam -->
+      <rect x="0" y="60" width="124" height="60" fill="url(#rtScan)"/>
+      <line x1="0" y1="120" x2="124" y2="120" stroke="#58E6D9" stroke-width="2.5"/>
+    </g>
+    <!-- AI tag -->
+    <g transform="translate(132 250)">
+      <rect width="70" height="26" rx="13" fill="url(#rtPrim)"/>
+      <text x="35" y="18" font-family="monospace" font-size="12" font-weight="bold" fill="#1b1b1b" text-anchor="middle">AI scan</text>
+    </g>
+  </g>
+
+  <!-- Extracted data card -->
+  <g transform="translate(360 150)">
+    <rect width="380" height="120" rx="12" fill="#2a2a2a" stroke="#58E6D9" stroke-width="1.5"/>
+    <text x="20" y="32" font-family="monospace" font-size="13" fill="#58E6D9">⚡ Auto-extracted</text>
+    <text x="20" y="60" font-family="monospace" font-size="12" fill="#ffffff80">merchant: Brazen Poppy</text>
+    <text x="20" y="82" font-family="monospace" font-size="12" fill="#ffffff80">total:    $24.50</text>
+    <text x="20" y="104" font-family="monospace" font-size="12" fill="#ffffff80">category: <tspan fill="#B63E96">Dining</tspan></text>
+  </g>
+
+  <!-- Analytics card -->
+  <g transform="translate(360 290)">
+    <rect width="380" height="150" rx="12" fill="#2a2a2a" stroke="#B63E96" stroke-width="1.5"/>
+    <text x="20" y="32" font-family="monospace" font-size="13" fill="#B63E96">Spending Insights</text>
+    <!-- bars -->
+    <rect x="24" y="92" width="34" height="34" rx="3" fill="#58E6D9"/>
+    <rect x="74" y="74" width="34" height="52" rx="3" fill="#B63E96"/>
+    <rect x="124" y="58" width="34" height="68" rx="3" fill="#58E6D9"/>
+    <rect x="174" y="80" width="34" height="46" rx="3" fill="#B63E96"/>
+    <rect x="224" y="66" width="34" height="60" rx="3" fill="#58E6D9"/>
+    <rect x="274" y="98" width="34" height="28" rx="3" fill="#B63E96"/>
+    <!-- donut -->
+    <circle cx="335" cy="92" r="22" fill="none" stroke="#3a3a3a" stroke-width="8"/>
+    <circle cx="335" cy="92" r="22" fill="none" stroke="url(#rtPrim)" stroke-width="8" stroke-dasharray="90 138" transform="rotate(-90 335 92)"/>
+  </g>
+</svg>

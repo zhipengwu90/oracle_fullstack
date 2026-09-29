@@ -1,13 +1,23 @@
 from django.contrib.auth import authenticate, login as django_login, logout as django_logout
 from django.db import connection
 from django.middleware.csrf import get_token
+from django.shortcuts import get_object_or_404
 from rest_framework import generics
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from .models import Mortgage
-from .serializers import MortgageSerializer
+from .models import Experience, Mortgage, Profile, Project, SocialLink, Skill, Stat, Topic
+from .serializers import (
+    ExperienceSerializer,
+    MortgageSerializer,
+    ProfileSerializer,
+    ProjectSerializer,
+    SocialLinkSerializer,
+    SkillSerializer,
+    StatSerializer,
+    TopicSerializer,
+)
 
 
 @api_view(['GET'])
@@ -99,5 +109,67 @@ class MortgageListView(generics.ListAPIView):
     """GET /api/mortgages/ -> all rows from myapp_v1.mortgage as a plain JSON array."""
     queryset = Mortgage.objects.all().order_by('id')
     serializer_class = MortgageSerializer
+    permission_classes = [AllowAny]
+    pagination_class = None
+
+
+class TopicListView(generics.ListAPIView):
+    """GET /api/topics/ -> all rows from myapp_v1.topics as a plain JSON array."""
+    queryset = Topic.objects.all().order_by('-created_date', '-tp_id')
+    serializer_class = TopicSerializer
+    permission_classes = [AllowAny]
+    pagination_class = None
+
+
+# ---------------------------------------------------------------------------
+# Portfolio content - all read-only and public. Writes happen through
+# Django Admin (staff-only, session-authenticated), never through this API.
+# ---------------------------------------------------------------------------
+
+class ProfileDetailView(generics.RetrieveAPIView):
+    """GET /api/portfolio/profile/ -> the single profile row."""
+    serializer_class = ProfileSerializer
+    permission_classes = [AllowAny]
+
+    def get_object(self):
+        return get_object_or_404(Profile.objects.all())
+
+
+class StatListView(generics.ListAPIView):
+    """GET /api/portfolio/stats/ -> About-page stat counters, in display order."""
+    queryset = Stat.objects.all()
+    serializer_class = StatSerializer
+    permission_classes = [AllowAny]
+    pagination_class = None
+
+
+class SkillListView(generics.ListAPIView):
+    """GET /api/portfolio/skills/ -> skills, in display order."""
+    queryset = Skill.objects.all()
+    serializer_class = SkillSerializer
+    permission_classes = [AllowAny]
+    pagination_class = None
+
+
+class ExperienceListView(generics.ListAPIView):
+    """GET /api/portfolio/experience/ -> work history, in display order."""
+    queryset = Experience.objects.all()
+    serializer_class = ExperienceSerializer
+    permission_classes = [AllowAny]
+    pagination_class = None
+
+
+class ProjectListView(generics.ListAPIView):
+    """GET /api/portfolio/projects/ -> projects with their tags, in display order."""
+    queryset = Project.objects.prefetch_related('tags').all()
+    serializer_class = ProjectSerializer
+    permission_classes = [AllowAny]
+    pagination_class = None
+
+
+class SocialLinkListView(generics.ListAPIView):
+    """GET /api/portfolio/social-links/ -> social/contact links, in display order."""
+    queryset = SocialLink.objects.all()
+    serializer_class = SocialLinkSerializer
     permission_classes = [AllowAny]
     pagination_class = None

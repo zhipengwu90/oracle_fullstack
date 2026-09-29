@@ -1,6 +1,10 @@
 import Link from "next/link";
+import Image from "next/image";
 import { headers } from "next/headers";
-import LogoutButton from "./LogoutButton";
+import NavLinks from "./NavLinks";
+import logo from "../../public/Logo.png";
+
+type SocialLinkData = { id: number; platform: string; label: string; url: string };
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 
@@ -18,39 +22,29 @@ async function getUsername(): Promise<string | null> {
   }
 }
 
+async function getSocialLinks(): Promise<SocialLinkData[]> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/portfolio/social-links/`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
 export default async function NavBar() {
-  const username = await getUsername();
+  const [username, socialLinks] = await Promise.all([getUsername(), getSocialLinks()]);
 
   return (
-    <header className="border-b border-gray-200">
-      <nav className="mx-auto flex max-w-4xl items-center justify-between p-4">
-        <Link href="/" className="text-lg font-semibold">
-          Wu App
+    <header className="sticky top-0 z-40 border-b border-foreground/10 bg-background/80 backdrop-blur-md">
+      <nav className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
+        <Link href="/" className="flex items-center transition-opacity hover:opacity-80">
+          <Image src={logo} alt="Zhipeng Wu" className="h-9 w-auto" priority />
         </Link>
 
-        <div className="flex items-center gap-6 text-sm">
-          {username ? (
-            <>
-              <Link
-                href="/calculator"
-                className="text-gray-600 hover:text-gray-900"
-              >
-                Calculator
-              </Link>
-              <div className="flex items-center gap-3">
-                <span className="text-gray-700">Hi, {username}</span>
-                <LogoutButton />
-              </div>
-            </>
-          ) : (
-            <Link
-              href="/login"
-              className="rounded-md bg-gray-900 px-4 py-1.5 font-medium text-white hover:bg-gray-700"
-            >
-              Log in
-            </Link>
-          )}
-        </div>
+        <NavLinks username={username} socialLinks={socialLinks} />
       </nav>
     </header>
   );

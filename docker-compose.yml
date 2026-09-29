@@ -25,6 +25,10 @@ services:
     # directly by Docker.
     ports:
       - "127.0.0.1:8000:8000"
+    volumes:
+      # Uploaded portfolio images (MEDIA_ROOT) survive container
+      # rebuilds/redeploys instead of living only in the old container.
+      - backend_media:/app/media
     networks:
       - appnet
 
@@ -44,3 +48,6 @@ services:
 networks:
   appnet:
     driver: bridge
+
+volumes:
+  backend_media:

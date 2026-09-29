@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" fill="none">
+  <defs>
+    <linearGradient id="bpBg" x1="0" y1="0" x2="800" y2="500" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1b1b1b"/>
+      <stop offset="1" stop-color="#231b20"/>
+    </linearGradient>
+    <linearGradient id="bpHero" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#B63E96" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#58E6D9" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="bpCroiss" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e6b873"/>
+      <stop offset="1" stop-color="#c8923f"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="500" fill="url(#bpBg)"/>
+
+  <!-- Title -->
+  <text x="60" y="70" font-family="monospace" font-size="26" font-weight="bold" fill="#ffffff">Brazen Poppy Bakery</text>
+  <text x="60" y="98" font-family="monospace" font-size="13" fill="#ffffff60">Next.js · TailwindCSS · Web Design</text>
+
+  <!-- Browser window mockup -->
+  <g transform="translate(60 130)">
+    <rect x="-4" y="-4" width="688" height="338" rx="14" fill="#000"/>
+    <rect width="680" height="330" rx="10" fill="#f5f5f5"/>
+    <!-- browser bar -->
+    <rect width="680" height="36" rx="10" fill="#e2e2e2"/>
+    <circle cx="20" cy="18" r="5" fill="#B63E96"/>
+    <circle cx="38" cy="18" r="5" fill="#e6b873"/>
+    <circle cx="56" cy="18" r="5" fill="#58E6D9"/>
+    <rect x="90" y="9" width="420" height="18" rx="9" fill="#fff"/>
+    <text x="104" y="22" font-family="monospace" font-size="11" fill="#888">brazenpoppy.ca</text>
+
+    <!-- nav -->
+    <text x="24" y="68" font-family="monospace" font-size="13" font-weight="bold" fill="#1b1b1b">Brazen Poppy</text>
+    <text x="540" y="68" font-family="monospace" font-size="11" fill="#666">Menu  About  Hours</text>
+
+    <!-- hero -->
+    <rect x="0" y="86" width="680" height="170" fill="url(#bpHero)"/>
+    <text x="40" y="150" font-family="serif" font-size="30" font-weight="bold" fill="#fff">Oven-Fresh,</text>
+    <text x="40" y="186" font-family="serif" font-size="30" font-weight="bold" fill="#fff">Every Morning</text>
+    <text x="42" y="214" font-family="monospace" font-size="12" fill="#ffffffcc">Fresh bread, pastries &amp; coffee · Parksville, BC</text>
+    <rect x="42" y="226" width="120" height="22" rx="11" fill="#1b1b1b"/>
+    <text x="102" y="241" font-family="monospace" font-size="11" fill="#fff" text-anchor="middle">View Menu</text>
+
+    <!-- croissant illustration -->
+    <g transform="translate(540 170)">
+      <path d="M 0 0 C -40 -8 -70 16 -64 44 C -40 30 -20 30 0 36 C 20 30 40 30 64 44 C 70 16 40 -8 0 0 Z" fill="url(#bpCroiss)" stroke="#a87529" stroke-width="2"/>
+      <path d="M -40 18 L -28 30 M -16 14 L -8 30 M 8 14 L 16 30 M 28 18 L 40 30" stroke="#a87529" stroke-width="1.5"/>
+    </g>
+
+    <!-- menu cards -->
+    <g transform="translate(0 270)">
+      <rect x="24" y="0" width="196" height="46" rx="8" fill="#fff" stroke="#e2e2e2"/>
+      <circle cx="48" cy="23" r="12" fill="#e6b873"/>
+      <rect x="68" y="14" width="90" height="7" rx="3" fill="#333"/>
+      <rect x="68" y="28" width="60" height="6" rx="3" fill="#bbb"/>
+
+      <rect x="242" y="0" width="196" height="46" rx="8" fill="#fff" stroke="#e2e2e2"/>
+      <circle cx="266" cy="23" r="12" fill="#B63E96"/>
+      <rect x="286" y="14" width="90" height="7" rx="3" fill="#333"/>
+      <rect x="286" y="28" width="60" height="6" rx="3" fill="#bbb"/>
+
+      <rect x="460" y="0" width="196" height="46" rx="8" fill="#fff" stroke="#e2e2e2"/>
+      <circle cx="484" cy="23" r="12" fill="#58E6D9"/>
+      <rect x="504" y="14" width="90" height="7" rx="3" fill="#333"/>
+      <rect x="504" y="28" width="60" height="6" rx="3" fill="#bbb"/>
+    </g>
+  </g>
+</svg>

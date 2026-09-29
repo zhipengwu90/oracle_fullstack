@@ -31,6 +31,7 @@ const nextConfig: NextConfig = {
       { source: "/api/:path*", destination: `${backend}/api/:path*` },
       { source: "/api-auth/:path*", destination: `${backend}/api-auth/:path*` },
       { source: "/static/:path*", destination: `${backend}/static/:path*` },
+      { source: "/media/:path*", destination: `${backend}/media/:path*` },
       // No trailing slash -> Django's own APPEND_SLASH redirect handles it,
       // same as it does behind nginx in production.
       { source: "/admin", destination: `${backend}/admin` },

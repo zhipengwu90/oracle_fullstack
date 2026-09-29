@@ -142,10 +142,27 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STORAGES = {
+    # Explicit default: Django doesn't fall back to its own built-in
+    # default when STORAGES is overridden at all (needed below for
+    # whitenoise) - without this, any ImageField/FileField .url/.save()
+    # raises InvalidStorageError.
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
+
+# ---------------------------------------------------------------------------
+# Media (user-uploaded images: portfolio profile/project pictures via Django
+# Admin). Served by Django itself at any traffic level this site sees (see
+# config/urls.py) - nginx just proxies /media/ through like it does /static/
+# (nginx/app.wuapp.app.conf), and a docker-compose volume keeps the files
+# across container rebuilds (docker-compose.yml).
+# ---------------------------------------------------------------------------
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

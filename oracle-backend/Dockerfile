@@ -14,6 +14,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ .
 
+# backend/media/ is gitignored/dockerignored (it's where end-user uploads
+# land, and shouldn't ship in the image) - but these starter portfolio
+# images are tracked at sql/seed_images/ instead, so a fresh deploy has
+# working pictures immediately. See sql/portfolio_seed.sql.
+COPY sql/seed_images/portfolio/ /app/media/portfolio/
+
 RUN python manage.py collectstatic --noinput --skip-checks
 
 EXPOSE 8000
