@@ -13,6 +13,10 @@ const nextConfig: NextConfig = {
   // This disables that redirect so rewrites() below sees the URL as-is.
   skipTrailingSlashRedirect: true,
 
+  // Local dev only: lets `next dev` serve its dev assets (HMR etc.) when
+  // opened through nginx at dev.wuapp.app instead of localhost.
+  allowedDevOrigins: ["dev.wuapp.app"],
+
   // Local dev only: `next dev` has no nginx in front, so proxy Django's
   // routes to the backend directly. In Docker/production nginx handles this
   // routing (see nginx/app.wuapp.app.conf) before it ever reaches Next, so
@@ -28,6 +32,10 @@ const nextConfig: NextConfig = {
       // exact rules preserve the trailing slash Django's urls.py expects.
       { source: "/api/login/", destination: `${backend}/api/login/` },
       { source: "/api/logout/", destination: `${backend}/api/logout/` },
+      // Slash-terminated URLs keep their slash: otherwise :path* strips it,
+      // Django's APPEND_SLASH 301s back to the same URL, and it loops.
+      { source: "/api/:path*/", destination: `${backend}/api/:path*/` },
+      { source: "/admin/:path*/", destination: `${backend}/admin/:path*/` },
       { source: "/api/:path*", destination: `${backend}/api/:path*` },
       { source: "/api-auth/:path*", destination: `${backend}/api-auth/:path*` },
       { source: "/static/:path*", destination: `${backend}/static/:path*` },
