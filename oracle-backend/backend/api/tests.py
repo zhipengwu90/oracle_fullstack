@@ -1,13 +1,12 @@
 import json
 from datetime import date, timedelta
-from types import SimpleNamespace
 from unittest import mock
 
 from django.contrib.auth.models import User
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from . import ai, topic_sources
+from . import topic_sources
 from .models import Mortgage, Topic
 
 
@@ -48,55 +47,70 @@ class MortgageApiTests(LoggedInTestCase):
 
 
 class TopicApiTests(LoggedInTestCase):
-    def test_anonymous_cannot_read_or_act(self):
-        topic = Topic.objects.create(source="hackernews", content="x", created_date=date.today())
-        self.assertEqual(self.client.get("/api/topics/").status_code, 403)
+    def setUp(self):
+        super().setUp()
+        self.today = date.today()
+        self.yesterday = self.today - timedelta(days=1)
+
+    def add(self, content, day=None, **fields):
+        return Topic.objects.create(source="hackernews", content=content, created_date=day or self.today, **fields)
+
+    def test_anonymous_can_browse_but_not_see_ai_fields(self):
+        self.add("hot", ai_suggestion="private idea", ai_status="done")
+        res = self.client.get("/api/topics/")
+        self.assertEqual(res.status_code, 200)
+        row = res.json()[0]
+        self.assertEqual(row["content"], "hot")
+        self.assertNotIn("ai_suggestion", row)
+        self.assertNotIn("ai_status", row)
+
+    def test_anonymous_cannot_act(self):
+        topic = self.add("x")
         self.assertEqual(self.client.post("/api/topics/collect/").status_code, 403)
         self.assertEqual(self.client.post(f"/api/topics/{topic.pk}/suggest/").status_code, 403)
+        self.assertEqual(self.client.get(f"/api/topics/{topic.pk}/").status_code, 403)
+        self.assertEqual(self.client.delete(f"/api/topics/{topic.pk}/").status_code, 403)
 
-    def test_list_newest_first_with_url(self):
+    def test_logged_in_sees_ai_fields(self):
         self.login()
-        Topic.objects.create(source="a", content="old", created_date=date.today() - timedelta(days=1))
-        Topic.objects.create(source="b", content="new", url="https://x.test", created_date=date.today())
-        rows = self.client.get("/api/topics/").json()
-        self.assertEqual([r["content"] for r in rows], ["new", "old"])
-        self.assertEqual(rows[0]["url"], "https://x.test")
+        self.add("hot", ai_suggestion="idea", ai_status="done")
+        row = self.client.get("/api/topics/").json()[0]
+        self.assertEqual((row["ai_suggestion"], row["ai_status"]), ("idea", "done"))
+
+    def test_defaults_to_latest_day_and_filters_by_date(self):
+        self.add("old", self.yesterday)
+        self.add("new", self.today)
+        self.assertEqual([r["content"] for r in self.client.get("/api/topics/").json()], ["new"])
+        res = self.client.get(f"/api/topics/?date={self.yesterday.isoformat()}")
+        self.assertEqual([r["content"] for r in res.json()], ["old"])
+
+    def test_dates_list_newest_first_with_counts(self):
+        self.add("a", self.yesterday)
+        self.add("b", self.today)
+        self.add("c", self.today)
+        self.assertEqual(
+            self.client.get("/api/topics/dates/").json(),
+            [{"date": self.today.isoformat(), "count": 2}, {"date": self.yesterday.isoformat(), "count": 1}],
+        )
 
     def test_delete_topic(self):
         self.login()
-        topic = Topic.objects.create(source="a", content="junk", created_date=date.today())
+        topic = self.add("junk")
         self.assertEqual(self.client.delete(f"/api/topics/{topic.pk}/").status_code, 204)
         self.assertFalse(Topic.objects.exists())
 
-    def test_suggest_without_api_key_explains_instead_of_crashing(self):
+    def test_ask_ai_queues_request_for_the_worker(self):
         self.login()
-        topic = Topic.objects.create(source="a", content="x", created_date=date.today())
-        with mock.patch.dict("os.environ", {}, clear=True):
-            res = self.client.post(f"/api/topics/{topic.pk}/suggest/")
-        self.assertEqual(res.status_code, 503)
-        self.assertIn("ANTHROPIC_API_KEY", res.json()["error"])
-
-    def test_suggest_saves_answer(self):
-        self.login()
-        topic = Topic.objects.create(source="a", content="x", created_date=date.today())
-        with mock.patch("api.views.suggest_for_topic", return_value="Write a post") as suggest:
-            res = self.client.post(
-                f"/api/topics/{topic.pk}/suggest/", {"question": "angle?"}, format="json"
-            )
-        self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.json()["ai_suggestion"], "Write a post")
-        self.assertEqual(suggest.call_args.args[1], "angle?")
+        topic = self.add("x", ai_suggestion="old answer", ai_status="done")
+        res = self.client.post(f"/api/topics/{topic.pk}/suggest/", {"question": " angle? "}, format="json")
+        self.assertEqual(res.status_code, 202)
+        self.assertEqual(res.json()["ai_status"], "pending")
         topic.refresh_from_db()
-        self.assertEqual(topic.ai_suggestion, "Write a post")
-
-    def test_suggest_refusal_leaves_topic_unchanged(self):
-        self.login()
-        topic = Topic.objects.create(source="a", content="x", created_date=date.today())
-        with mock.patch("api.views.suggest_for_topic", side_effect=ai.AIRefused("no")):
-            res = self.client.post(f"/api/topics/{topic.pk}/suggest/")
-        self.assertEqual(res.status_code, 422)
-        topic.refresh_from_db()
-        self.assertIsNone(topic.ai_suggestion)
+        self.assertEqual((topic.ai_status, topic.ai_question), ("pending", "angle?"))
+        self.assertIsNotNone(topic.ai_requested_at)
+        # The previous answer stays visible until the worker replaces it.
+        self.assertEqual(topic.ai_suggestion, "old answer")
+        self.assertEqual(self.client.get(f"/api/topics/{topic.pk}/").json()["ai_status"], "pending")
 
 
 class CollectTopicsTests(TestCase):
@@ -156,43 +170,3 @@ class SourceParserTests(TestCase):
         ]}]}]}}
         with mock.patch.object(topic_sources, "_get_json", return_value=data):
             self.assertEqual(topic_sources.baidu(5), [{"title": "hot", "url": "u1"}])
-
-
-def fake_response(stop_reason, *texts):
-    return SimpleNamespace(
-        stop_reason=stop_reason,
-        content=[SimpleNamespace(type="text", text=t) for t in texts],
-    )
-
-
-@mock.patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
-class SuggestForTopicTests(TestCase):
-    def setUp(self):
-        self.topic = Topic(source="hackernews", content="New DB release", url="https://db.test")
-
-    def patch_create(self, *responses):
-        client = mock.patch("api.ai.anthropic.Anthropic").start()
-        self.addCleanup(mock.patch.stopall)
-        create = client.return_value.beta.messages.create
-        create.side_effect = list(responses)
-        return create
-
-    def test_returns_text_and_sends_topic_and_question(self):
-        create = self.patch_create(fake_response("end_turn", "Idea 1. ", "Idea 2."))
-        self.assertEqual(ai.suggest_for_topic(self.topic, "for beginners?"), "Idea 1. Idea 2.")
-        prompt = create.call_args.kwargs["messages"][0]["content"]
-        self.assertIn("New DB release", prompt)
-        self.assertIn("https://db.test", prompt)
-        self.assertIn("for beginners?", prompt)
-
-    def test_resumes_after_pause_turn(self):
-        paused = fake_response("pause_turn", "")
-        create = self.patch_create(paused, fake_response("end_turn", "Done"))
-        self.assertEqual(ai.suggest_for_topic(self.topic), "Done")
-        resumed_messages = create.call_args.kwargs["messages"]
-        self.assertEqual(resumed_messages[1], {"role": "assistant", "content": paused.content})
-
-    def test_refusal_raises(self):
-        self.patch_create(fake_response("refusal"))
-        with self.assertRaises(ai.AIRefused):
-            ai.suggest_for_topic(self.topic)

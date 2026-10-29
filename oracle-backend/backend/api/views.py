@@ -1,6 +1,8 @@
-import anthropic
 from django.contrib.auth import authenticate, login as django_login, logout as django_logout
 from django.db import connection
+from django.db.models import Count
+from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
 from rest_framework import generics
@@ -8,13 +10,13 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from .ai import AINotConfigured, AIRefused, suggest_for_topic
 from .models import Experience, Mortgage, Profile, Project, SocialLink, Skill, Stat, Topic
 from .topic_sources import collect_topics
 from .serializers import (
     ExperienceSerializer,
     MortgageSerializer,
     ProfileSerializer,
+    PublicTopicSerializer,
     ProjectSerializer,
     SocialLinkSerializer,
     SkillSerializer,
@@ -128,22 +130,47 @@ class MortgageDetailView(generics.DestroyAPIView):
     permission_classes = [IsAuthenticated]
 
 
-# Enough for a few weeks of daily collection without the page getting huge.
-TOPIC_LIST_LIMIT = 300
-
-
 class TopicListView(generics.ListAPIView):
-    """GET /api/topics/ -> newest topics from myapp_v1.topics as a plain JSON array."""
-    serializer_class = TopicSerializer
-    permission_classes = [IsAuthenticated]
+    """
+    GET /api/topics/?date=YYYY-MM-DD -> that day's topics, newest first.
+    Without ?date, returns the most recent day that has any.
+
+    Public: anyone can browse what's trending. Logged-in users also get the
+    private AI fields (see TopicSerializer vs PublicTopicSerializer).
+    """
+    permission_classes = [AllowAny]
     pagination_class = None
 
+    def get_serializer_class(self):
+        if self.request.user.is_authenticated:
+            return TopicSerializer
+        return PublicTopicSerializer
+
     def get_queryset(self):
-        return Topic.objects.order_by('-created_date', '-tp_id')[:TOPIC_LIST_LIMIT]
+        day = parse_date(self.request.query_params.get('date') or '')
+        if day is None:
+            day = Topic.objects.order_by('-created_date').values_list('created_date', flat=True).first()
+        return Topic.objects.filter(created_date=day).order_by('-tp_id')
 
 
-class TopicDetailView(generics.DestroyAPIView):
-    """DELETE /api/topics/<id>/ -> remove a topic you don't care about."""
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def topic_dates(request):
+    """GET /api/topics/dates/ -> [{"date": ..., "count": ...}] newest first, for the date picker."""
+    rows = (
+        Topic.objects.exclude(created_date=None)
+        .values('created_date')
+        .annotate(count=Count('tp_id'))
+        .order_by('-created_date')
+    )
+    return Response([{"date": r['created_date'], "count": r['count']} for r in rows])
+
+
+class TopicDetailView(generics.RetrieveDestroyAPIView):
+    """
+    GET    /api/topics/<id>/ -> one topic (the page polls this while AI works).
+    DELETE /api/topics/<id>/ -> remove a topic you don't care about.
+    """
     queryset = Topic.objects.all()
     serializer_class = TopicSerializer
     permission_classes = [IsAuthenticated]
@@ -154,7 +181,7 @@ class TopicDetailView(generics.DestroyAPIView):
 def topics_collect(request):
     """
     POST /api/topics/collect/ -> fetch trending items from every source now
-    (same as `manage.py collect_topics`). Takes ~10-30s; returns per-source
+    (same as `manage.py collect_topics`). Takes ~10s; returns per-source
     counts or errors.
     """
     return Response(collect_topics())
@@ -164,21 +191,17 @@ def topics_collect(request):
 @permission_classes([IsAuthenticated])
 def topic_suggest(request, pk):
     """
-    POST /api/topics/<id>/suggest/ {"question": optional} -> ask Claude for
-    content ideas about this topic, save them to ai_suggestion, and return
-    the updated topic.
+    POST /api/topics/<id>/suggest/ {"question": optional} -> queue this topic
+    for Claude Code. Returns immediately with ai_status='pending'; the host's
+    scripts/ai_worker.py answers within a minute or two, and the page polls
+    GET /api/topics/<id>/ until ai_status is 'done' or 'error'.
     """
     topic = get_object_or_404(Topic, pk=pk)
-    try:
-        topic.ai_suggestion = suggest_for_topic(topic, request.data.get('question', ''))
-    except AINotConfigured as exc:
-        return Response({"error": str(exc)}, status=503)
-    except AIRefused as exc:
-        return Response({"error": str(exc)}, status=422)
-    except anthropic.APIError as exc:
-        return Response({"error": f"AI request failed: {exc}"}, status=502)
-    topic.save(update_fields=['ai_suggestion'])
-    return Response(TopicSerializer(topic).data)
+    topic.ai_status = Topic.AI_PENDING
+    topic.ai_question = (request.data.get('question') or '').strip() or None
+    topic.ai_requested_at = timezone.now()
+    topic.save(update_fields=['ai_status', 'ai_question', 'ai_requested_at'])
+    return Response(TopicSerializer(topic).data, status=202)
 
 
 # ---------------------------------------------------------------------------

@@ -24,11 +24,8 @@ RUN python manage.py collectstatic --noinput --skip-checks
 
 EXPOSE 8000
 
-# --timeout 120: "Ask AI" (Claude + web search) can take ~30-60s; gunicorn's
-# 30s default would kill the worker mid-request.
 CMD ["gunicorn", "config.wsgi:application", \
      "--bind", "0.0.0.0:8000", \
      "--workers", "3", \
-     "--timeout", "120", \
      "--access-logfile", "-", \
      "--error-logfile", "-"]

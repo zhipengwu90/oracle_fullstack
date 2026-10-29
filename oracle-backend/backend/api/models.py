@@ -30,14 +30,27 @@ class Topic(models.Model):
     Maps to the existing "topics" table in the myapp_v1 schema.
 
     managed = False, and tp_id is an identity column, same reasoning as
-    Mortgage above. url was added by sql/topics_url.sql.
+    Mortgage above. url and the ai_* queue columns were added by
+    sql/topics_upgrade.sql.
+
+    "Ask AI" is a queue, not a live call: the API sets ai_status='pending',
+    and scripts/ai_worker.py on the host runs Claude Code and writes back
+    ai_suggestion with status 'done' (or the error text with 'error').
     """
+    AI_PENDING = 'pending'
+    AI_RUNNING = 'running'
+    AI_DONE = 'done'
+    AI_ERROR = 'error'
+
     tp_id = models.BigAutoField(primary_key=True)
     source = models.TextField(blank=True, null=True)
     content = models.TextField(blank=True, null=True)
     url = models.TextField(blank=True, null=True)
     created_date = models.DateField(blank=True, null=True)
     ai_suggestion = models.TextField(blank=True, null=True)
+    ai_status = models.TextField(blank=True, null=True)
+    ai_question = models.TextField(blank=True, null=True)
+    ai_requested_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         managed = False

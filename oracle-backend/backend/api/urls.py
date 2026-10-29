@@ -10,6 +10,7 @@ urlpatterns = [
     path('mortgages/', views.MortgageListView.as_view(), name='mortgage-list'),
     path('mortgages/<int:pk>/', views.MortgageDetailView.as_view(), name='mortgage-detail'),
     path('topics/', views.TopicListView.as_view(), name='topic-list'),
+    path('topics/dates/', views.topic_dates, name='topic-dates'),
     path('topics/collect/', views.topics_collect, name='topic-collect'),
     path('topics/<int:pk>/', views.TopicDetailView.as_view(), name='topic-detail'),
     path('topics/<int:pk>/suggest/', views.topic_suggest, name='topic-suggest'),
