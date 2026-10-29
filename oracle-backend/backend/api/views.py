@@ -51,11 +51,11 @@ def health_check(request):
 def whoami(request):
     """
     GET /api/whoami/ -> tells the caller whether their session cookie is
-    logged in. Used by the Next.js middleware to gate protected pages -
+    logged in. Used by the Next.js proxy (proxy.ts) to gate protected pages -
     it forwards the browser's Cookie header here on every protected
     request. Always 200; the "authenticated" field is what callers check.
 
-    Note: this is called server-to-server (NavBar/middleware fetch it
+    Note: this is called server-to-server (NavBar/proxy.ts fetch it
     directly from Node, not the browser), so anything it sets via
     Set-Cookie never reaches the browser - that's why get_token() for the
     csrftoken cookie lives in login_view instead, which the browser calls
