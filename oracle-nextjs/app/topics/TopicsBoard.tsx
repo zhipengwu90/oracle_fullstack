@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { csrfHeaders } from "../lib/csrf";
 
@@ -18,9 +18,24 @@ export type TopicRow = {
   ai_question?: string | null;
 };
 
+// One page of GET /api/topics/.
+export type TopicPage = {
+  date: string | null;
+  count: number;
+  page: number;
+  pages: number;
+  sources: { source: string | null; count: number }[];
+  results: TopicRow[];
+};
+
+// The filters that live in the URL (?date=&source=&q=); page is separate.
+export type TopicQuery = { date?: string; source?: string; q?: string };
+
 type CollectResult = Record<string, { added: number; skipped: number } | { error: string }>;
 
 const POLL_MS = 5000;
+const SEARCH_DELAY_MS = 400;
+const PAGE_SIZE = 30; // matches TOPICS_PAGE_SIZE in the Django view
 
 // Special ?date= value for "every day at once".
 export const ALL_DAYS = "all";
@@ -48,6 +63,65 @@ function formatDay(iso: string) {
 
 function isWaiting(t: TopicRow) {
   return t.ai_status === "pending" || t.ai_status === "running";
+}
+
+// Page numbers to show: always first/last, a window around the current page,
+// and null for each gap ("…").
+function pageList(page: number, pages: number): (number | null)[] {
+  const wanted = new Set([1, pages, page - 1, page, page + 1]);
+  const list: (number | null)[] = [];
+  for (let p = 1; p <= pages; p++) {
+    if (wanted.has(p)) list.push(p);
+    else if (list[list.length - 1] !== null) list.push(null);
+  }
+  return list;
+}
+
+function Pagination({ page, pages, onPage }: { page: number; pages: number; onPage: (p: number) => void }) {
+  if (pages <= 1) return null;
+  const button =
+    "min-w-9 rounded-md border px-3 py-1.5 text-sm disabled:opacity-30";
+  return (
+    <nav className="mt-6 flex flex-wrap items-center justify-center gap-1" aria-label="Pages">
+      <button
+        type="button"
+        onClick={() => onPage(page - 1)}
+        disabled={page <= 1}
+        className={`${button} border-foreground/15 text-foreground/70 hover:text-foreground`}
+      >
+        ← Prev
+      </button>
+      {pageList(page, pages).map((p, i) =>
+        p === null ? (
+          <span key={`gap-${i}`} className="px-1 text-foreground/40">
+            …
+          </span>
+        ) : (
+          <button
+            key={p}
+            type="button"
+            onClick={() => onPage(p)}
+            aria-current={p === page ? "page" : undefined}
+            className={`${button} ${
+              p === page
+                ? "border-accent bg-accent/15 text-accent"
+                : "border-foreground/15 text-foreground/70 hover:text-foreground"
+            }`}
+          >
+            {p}
+          </button>
+        ),
+      )}
+      <button
+        type="button"
+        onClick={() => onPage(page + 1)}
+        disabled={page >= pages}
+        className={`${button} border-foreground/15 text-foreground/70 hover:text-foreground`}
+      >
+        Next →
+      </button>
+    </nav>
+  );
 }
 
 function TopicItem({
@@ -169,47 +243,68 @@ function TopicItem({
 
 export default function TopicsBoard({
   dates,
-  selectedDate,
-  initialTopics,
+  data,
+  query,
   canEdit,
 }: {
   dates: TopicDate[];
-  selectedDate: string | null;
-  initialTopics: TopicRow[];
+  data: TopicPage;
+  query: TopicQuery;
   canEdit: boolean;
 }) {
   const router = useRouter();
-  const [topics, setTopics] = useState(initialTopics);
-  const [source, setSource] = useState<string>("all");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(query.q ?? "");
+  // The list comes from the server (props); keep only local edits on top -
+  // AI answers polled in, and deletes - so a router.refresh() just works.
+  const [updated, setUpdated] = useState<Record<number, TopicRow>>({});
+  const [deleted, setDeleted] = useState<Set<number>>(new Set());
   const [collecting, setCollecting] = useState(false);
   const [collectResult, setCollectResult] = useState<CollectResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const topics = data.results
+    .filter((t) => !deleted.has(t.tp_id))
+    .map((t) => updated[t.tp_id] ?? t);
+
   // Stable identity, so a TopicItem's polling timer isn't reset on every render.
   const updateTopic = useCallback(
-    (updated: TopicRow) =>
-      setTopics((prev) => prev.map((p) => (p.tp_id === updated.tp_id ? updated : p))),
+    (t: TopicRow) => setUpdated((prev) => ({ ...prev, [t.tp_id]: t })),
     [],
   );
 
-  const sources = useMemo(
-    () => [...new Set(topics.map((t) => t.source ?? "other"))].sort(),
-    [topics],
+  const selectedDate = data.date;
+  const allDays = selectedDate === ALL_DAYS;
+
+  // Changing a filter goes back to page 1; only explicit paging sets page.
+  const navigate = useCallback(
+    (changes: TopicQuery & { page?: number }, replace = false) => {
+      const next = { ...query, ...changes };
+      const params = new URLSearchParams();
+      for (const key of ["date", "source", "q"] as const) {
+        if (next[key]) params.set(key, next[key]!);
+      }
+      if (changes.page && changes.page > 1) params.set("page", String(changes.page));
+      const qs = params.toString();
+      const url = qs ? `/topics?${qs}` : "/topics";
+      if (replace) router.replace(url);
+      else router.push(url);
+    },
+    [query, router],
   );
-  const visible = topics.filter(
-    (t) =>
-      (source === "all" || (t.source ?? "other") === source) &&
-      (t.content ?? "").toLowerCase().includes(search.toLowerCase()),
-  );
+
+  // Search as you type, after a short pause (replace: no history entry per keystroke).
+  useEffect(() => {
+    if (search === (query.q ?? "")) return;
+    const timer = setTimeout(() => navigate({ q: search }, true), SEARCH_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [search, query.q, navigate]);
 
   // dates is newest first, so "older" is the next index.
   const index = dates.findIndex((d) => d.date === selectedDate);
   const newer = index > 0 ? dates[index - 1].date : null;
   const older = index >= 0 && index < dates.length - 1 ? dates[index + 1].date : null;
-  const goTo = (day: string) => router.push(`/topics?date=${day}`);
-  const allDays = selectedDate === ALL_DAYS;
   const totalCount = dates.reduce((n, d) => n + d.count, 0);
+  const sourceTotal = data.sources.reduce((n, s) => n + s.count, 0);
 
   async function collect() {
     setCollecting(true);
@@ -219,17 +314,11 @@ export default function TopicsBoard({
       const res = await fetch("/api/topics/collect/", { method: "POST", headers: csrfHeaders() });
       if (!res.ok) throw new Error(await errorMessage(res));
       setCollectResult(await res.json());
-      if (allDays) {
-        const list = await fetch(`/api/topics/?date=${ALL_DAYS}`);
-        if (list.ok) setTopics(await list.json());
-      } else {
-        // /api/topics/ with no date returns the newest day, where new items land.
-        const latest = await fetch("/api/topics/");
-        const rows: TopicRow[] = latest.ok ? await latest.json() : [];
-        if (rows[0]?.created_date === selectedDate) setTopics(rows);
-        else router.push("/topics"); // a new day appeared: switch to it
-      }
-      router.refresh(); // update the day list and counts
+      // New items are dated today: show the newest day (or keep "All days").
+      if (allDays) navigate({ date: ALL_DAYS, source: "", q: "" });
+      else navigate({ date: "", source: "", q: "" });
+      setSearch("");
+      router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -239,8 +328,9 @@ export default function TopicsBoard({
 
   async function remove(id: number) {
     const res = await fetch(`/api/topics/${id}/`, { method: "DELETE", headers: csrfHeaders() });
-    if (res.ok) setTopics((prev) => prev.filter((t) => t.tp_id !== id));
-    else setError(await errorMessage(res));
+    if (!res.ok) return setError(await errorMessage(res));
+    setDeleted((prev) => new Set(prev).add(id));
+    router.refresh(); // update counts and refill the page
   }
 
   const added = collectResult
@@ -250,18 +340,26 @@ export default function TopicsBoard({
     ? Object.entries(collectResult).filter(([, r]) => "error" in r).map(([name]) => name)
     : [];
 
+  const first = (data.page - 1) * PAGE_SIZE + 1;
+  const last = Math.min(data.page * PAGE_SIZE, data.count);
   const navButton =
     "rounded-md border border-foreground/15 px-3 py-2 text-sm text-foreground/70 hover:text-foreground disabled:opacity-30";
+  const chip = (active: boolean) =>
+    `rounded-full border px-3 py-1 ${
+      active
+        ? "border-accent bg-accent/15 text-accent"
+        : "border-foreground/15 text-foreground/70 hover:text-foreground"
+    }`;
 
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <button type="button" onClick={() => older && goTo(older)} disabled={!older} className={navButton} aria-label="Previous day">
+        <button type="button" onClick={() => older && navigate({ date: older })} disabled={!older} className={navButton} aria-label="Previous day">
           ←
         </button>
         <select
           value={selectedDate ?? ""}
-          onChange={(e) => goTo(e.target.value)}
+          onChange={(e) => navigate({ date: e.target.value })}
           disabled={dates.length === 0}
           aria-label="Choose a day"
           className="rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm focus:border-accent focus:outline-none"
@@ -277,7 +375,7 @@ export default function TopicsBoard({
             </option>
           ))}
         </select>
-        <button type="button" onClick={() => newer && goTo(newer)} disabled={!newer} className={navButton} aria-label="Next day">
+        <button type="button" onClick={() => newer && navigate({ date: newer })} disabled={!newer} className={navButton} aria-label="Next day">
           →
         </button>
         <input
@@ -299,11 +397,6 @@ export default function TopicsBoard({
         )}
       </div>
 
-      {allDays && topics.length < totalCount && (
-        <p className="mb-4 text-sm text-foreground/60">
-          Showing the newest {topics.length} of {totalCount}. Pick a day to see older ones.
-        </p>
-      )}
       {collectResult && (
         <p className="mb-4 text-sm text-foreground/70">
           Added {added} new topic{added === 1 ? "" : "s"}.
@@ -317,29 +410,38 @@ export default function TopicsBoard({
       )}
 
       <div className="mb-2 flex flex-wrap gap-2 text-sm">
-        {["all", ...sources].map((s) => (
+        <button type="button" onClick={() => navigate({ source: "" })} className={chip(!query.source)}>
+          All ({sourceTotal})
+        </button>
+        {data.sources.map((s) => (
           <button
-            key={s}
+            key={s.source ?? "other"}
             type="button"
-            onClick={() => setSource(s)}
-            className={`rounded-full border px-3 py-1 ${
-              source === s
-                ? "border-accent bg-accent/15 text-accent"
-                : "border-foreground/15 text-foreground/70 hover:text-foreground"
-            }`}
+            onClick={() => navigate({ source: s.source ?? "" })}
+            className={chip(query.source === s.source)}
           >
-            {s === "all" ? `All (${topics.length})` : s}
+            {s.source ?? "other"} ({s.count})
           </button>
         ))}
       </div>
 
-      {visible.length === 0 ? (
+      {data.count > 0 && (
+        <p className="mt-3 text-xs text-foreground/50">
+          Showing {first}-{last} of {data.count}
+        </p>
+      )}
+
+      {topics.length === 0 ? (
         <p className="py-8 text-sm text-foreground/60">
-          {topics.length === 0 ? allDays ? "Nothing collected yet." : "Nothing collected for this day yet." : "No topics match."}
+          {data.count === 0 && !query.source && !query.q
+            ? allDays
+              ? "Nothing collected yet."
+              : "Nothing collected for this day yet."
+            : "No topics match."}
         </p>
       ) : (
         <ul className="divide-y divide-foreground/10">
-          {visible.map((t) => (
+          {topics.map((t) => (
             <TopicItem
               key={t.tp_id}
               topic={t}
@@ -351,6 +453,8 @@ export default function TopicsBoard({
           ))}
         </ul>
       )}
+
+      <Pagination page={data.page} pages={data.pages} onPage={(page) => navigate({ page })} />
     </div>
   );
 }

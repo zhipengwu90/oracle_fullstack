@@ -1,31 +1,30 @@
 import { getWithSession } from "../lib/backend";
-import TopicsBoard, { type TopicDate, type TopicRow } from "./TopicsBoard";
+import TopicsBoard, { type TopicDate, type TopicPage, type TopicQuery } from "./TopicsBoard";
 
 export default async function Trending({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string }>;
+  searchParams: Promise<TopicQuery & { page?: string }>;
 }) {
-  const { date } = await searchParams;
+  const { date, source, q, page } = await searchParams;
+  const query: TopicQuery = { date, source, q };
   let dates: TopicDate[] = [];
-  let rows: TopicRow[] = [];
+  let data: TopicPage | null = null;
   let loggedIn = false;
   let error: string | null = null;
   try {
-    const [whoami, dateList] = await Promise.all([
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries({ ...query, page })) {
+      if (value) params.set(key, value);
+    }
+    [{ authenticated: loggedIn }, dates, data] = await Promise.all([
       getWithSession<{ authenticated: boolean }>("/api/whoami/"),
       getWithSession<TopicDate[]>("/api/topics/dates/"),
+      getWithSession<TopicPage>(`/api/topics/?${params}`),
     ]);
-    loggedIn = whoami.authenticated;
-    dates = dateList;
-    const selected = date ?? dates[0]?.date;
-    if (selected) {
-      rows = await getWithSession<TopicRow[]>(`/api/topics/?date=${encodeURIComponent(selected)}`);
-    }
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
-  const selectedDate = date ?? dates[0]?.date ?? null;
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
@@ -41,19 +40,12 @@ export default async function Trending({
         {loggedIn && " You can also ask AI for content ideas on any topic."}
       </p>
 
-      {error ? (
+      {error || !data ? (
         <p className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
           Failed to load: {error}
         </p>
       ) : (
-        <TopicsBoard
-          // Remount on day change so local state starts from that day's data.
-          key={selectedDate ?? "none"}
-          dates={dates}
-          selectedDate={selectedDate}
-          initialTopics={rows}
-          canEdit={loggedIn}
-        />
+        <TopicsBoard dates={dates} data={data} query={query} canEdit={loggedIn} />
       )}
     </main>
   );

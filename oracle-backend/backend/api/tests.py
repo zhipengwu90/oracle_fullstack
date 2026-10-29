@@ -59,7 +59,7 @@ class TopicApiTests(LoggedInTestCase):
         self.add("hot", ai_suggestion="private idea", ai_status="done")
         res = self.client.get("/api/topics/")
         self.assertEqual(res.status_code, 200)
-        row = res.json()[0]
+        row = res.json()["results"][0]
         self.assertEqual(row["content"], "hot")
         self.assertNotIn("ai_suggestion", row)
         self.assertNotIn("ai_status", row)
@@ -74,21 +74,46 @@ class TopicApiTests(LoggedInTestCase):
     def test_logged_in_sees_ai_fields(self):
         self.login()
         self.add("hot", ai_suggestion="idea", ai_status="done")
-        row = self.client.get("/api/topics/").json()[0]
+        row = self.client.get("/api/topics/").json()["results"][0]
         self.assertEqual((row["ai_suggestion"], row["ai_status"]), ("idea", "done"))
 
     def test_defaults_to_latest_day_and_filters_by_date(self):
         self.add("old", self.yesterday)
         self.add("new", self.today)
-        self.assertEqual([r["content"] for r in self.client.get("/api/topics/").json()], ["new"])
+        res = self.client.get("/api/topics/").json()
+        self.assertEqual((res["date"], [r["content"] for r in res["results"]]), (self.today.isoformat(), ["new"]))
         res = self.client.get(f"/api/topics/?date={self.yesterday.isoformat()}")
-        self.assertEqual([r["content"] for r in res.json()], ["old"])
+        self.assertEqual([r["content"] for r in res.json()["results"]], ["old"])
 
     def test_all_days(self):
         self.add("old", self.yesterday)
         self.add("new", self.today)
         res = self.client.get("/api/topics/?date=all")
-        self.assertEqual([r["content"] for r in res.json()], ["new", "old"])
+        self.assertEqual([r["content"] for r in res.json()["results"]], ["new", "old"])
+
+    def test_pagination(self):
+        for i in range(35):
+            self.add(f"t{i}")
+        first = self.client.get("/api/topics/").json()
+        self.assertEqual((first["count"], first["page"], first["pages"]), (35, 1, 2))
+        self.assertEqual(len(first["results"]), 30)
+        self.assertEqual(first["results"][0]["content"], "t34")  # newest first
+        second = self.client.get("/api/topics/?page=2").json()
+        self.assertEqual([r["content"] for r in second["results"]], [f"t{i}" for i in range(4, -1, -1)])
+        # Out-of-range or junk page numbers clamp instead of erroring.
+        self.assertEqual(self.client.get("/api/topics/?page=99").json()["page"], 2)
+        self.assertEqual(self.client.get("/api/topics/?page=abc").json()["page"], 1)
+
+    def test_source_and_search_filters_keep_full_source_counts(self):
+        self.add("Rust release")
+        self.add("Python tips")
+        Topic.objects.create(source="reddit", content="rust meme", created_date=self.today)
+        res = self.client.get("/api/topics/?source=hackernews&q=rust").json()
+        self.assertEqual([r["content"] for r in res["results"]], ["Rust release"])
+        self.assertEqual(res["count"], 1)
+        self.assertEqual(
+            res["sources"], [{"source": "hackernews", "count": 2}, {"source": "reddit", "count": 1}]
+        )
 
     def test_dates_list_newest_first_with_counts(self):
         self.add("a", self.yesterday)

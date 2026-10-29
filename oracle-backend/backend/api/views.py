@@ -1,4 +1,5 @@
 from django.contrib.auth import authenticate, login as django_login, logout as django_logout
+from django.core.paginator import Paginator
 from django.db import connection
 from django.db.models import Count
 from django.utils import timezone
@@ -130,35 +131,57 @@ class MortgageDetailView(generics.DestroyAPIView):
     permission_classes = [IsAuthenticated]
 
 
-# "All days" view: newest first, capped so the page stays fast as history grows.
-ALL_TOPICS_LIMIT = 500
+TOPICS_PAGE_SIZE = 30
 
 
-class TopicListView(generics.ListAPIView):
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def topic_list(request):
     """
-    GET /api/topics/?date=YYYY-MM-DD -> that day's topics, newest first.
-    GET /api/topics/?date=all        -> every day, newest first (capped).
-    Without ?date, returns the most recent day that has any.
+    GET /api/topics/ -> one page of topics, newest first:
+      ?date=YYYY-MM-DD | all   (default: the most recent day that has any)
+      ?source=hackernews       (optional)
+      ?q=text                  (optional, matches the title)
+      ?page=N                  (30 per page; out-of-range pages clamp)
+
+    Returns {"date", "count", "page", "pages", "sources", "results"}.
+    "sources" counts every source on the chosen day(s), ignoring ?source
+    and ?q, so the filter chips stay put while you filter.
 
     Public: anyone can browse what's trending. Logged-in users also get the
     private AI fields (see TopicSerializer vs PublicTopicSerializer).
     """
-    permission_classes = [AllowAny]
-    pagination_class = None
+    params = request.query_params
+    topics = Topic.objects.all()
+    if params.get('date') == 'all':
+        day = 'all'
+    else:
+        day = parse_date(params.get('date') or '') or (
+            Topic.objects.order_by('-created_date').values_list('created_date', flat=True).first()
+        )
+        topics = topics.filter(created_date=day)
 
-    def get_serializer_class(self):
-        if self.request.user.is_authenticated:
-            return TopicSerializer
-        return PublicTopicSerializer
+    sources = [
+        {"source": r['source'], "count": r['count']}
+        for r in topics.values('source').annotate(count=Count('tp_id')).order_by('source')
+    ]
+    if params.get('source'):
+        topics = topics.filter(source=params['source'])
+    if params.get('q'):
+        topics = topics.filter(content__icontains=params['q'])
 
-    def get_queryset(self):
-        param = self.request.query_params.get('date') or ''
-        if param == 'all':
-            return Topic.objects.order_by('-created_date', '-tp_id')[:ALL_TOPICS_LIMIT]
-        day = parse_date(param)
-        if day is None:
-            day = Topic.objects.order_by('-created_date').values_list('created_date', flat=True).first()
-        return Topic.objects.filter(created_date=day).order_by('-tp_id')
+    page = Paginator(topics.order_by('-created_date', '-tp_id'), TOPICS_PAGE_SIZE).get_page(
+        params.get('page')
+    )
+    serializer = TopicSerializer if request.user.is_authenticated else PublicTopicSerializer
+    return Response({
+        "date": day,
+        "count": page.paginator.count,
+        "page": page.number,
+        "pages": page.paginator.num_pages,
+        "sources": sources,
+        "results": serializer(page.object_list, many=True).data,
+    })
 
 
 @api_view(['GET'])
