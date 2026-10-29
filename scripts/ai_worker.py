@@ -20,6 +20,7 @@ so it runs with the host's system Python - no virtualenv.
 """
 import argparse
 import fcntl
+import hashlib
 import json
 import os
 import shutil
@@ -170,8 +171,10 @@ def main():
     parser.add_argument("--watch", action="store_true", help="keep polling every 10s (dev)")
     args = parser.parse_args()
 
-    # Cron fires every minute; if the previous run is still busy, skip.
-    lock = open(os.path.join(tempfile.gettempdir(), "ai_worker.lock"), "w")
+    # Cron fires every minute; if the previous run is still busy, skip. One
+    # lock per env file, so a dev worker never blocks the production one.
+    env_id = hashlib.sha1(os.path.abspath(args.env_file).encode()).hexdigest()[:10]
+    lock = open(os.path.join(tempfile.gettempdir(), f"ai_worker-{env_id}.lock"), "w")
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
