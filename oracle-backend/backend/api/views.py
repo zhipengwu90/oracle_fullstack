@@ -1,17 +1,23 @@
 from django.contrib.auth import authenticate, login as django_login, logout as django_logout
+from django.core.paginator import Paginator
 from django.db import connection
+from django.db.models import Count
+from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
 from rest_framework import generics
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Experience, Mortgage, Profile, Project, SocialLink, Skill, Stat, Topic
+from .topic_sources import collect_topics
 from .serializers import (
     ExperienceSerializer,
     MortgageSerializer,
     ProfileSerializer,
+    PublicTopicSerializer,
     ProjectSerializer,
     SocialLinkSerializer,
     SkillSerializer,
@@ -48,11 +54,11 @@ def health_check(request):
 def whoami(request):
     """
     GET /api/whoami/ -> tells the caller whether their session cookie is
-    logged in. Used by the Next.js middleware to gate protected pages -
+    logged in. Used by the Next.js proxy (proxy.ts) to gate protected pages -
     it forwards the browser's Cookie header here on every protected
     request. Always 200; the "authenticated" field is what callers check.
 
-    Note: this is called server-to-server (NavBar/middleware fetch it
+    Note: this is called server-to-server (NavBar/proxy.ts fetch it
     directly from Node, not the browser), so anything it sets via
     Set-Cookie never reaches the browser - that's why get_token() for the
     csrftoken cookie lives in login_view instead, which the browser calls
@@ -105,20 +111,128 @@ def logout_view(request):
     return Response({"authenticated": False})
 
 
-class MortgageListView(generics.ListAPIView):
-    """GET /api/mortgages/ -> all rows from myapp_v1.mortgage as a plain JSON array."""
+class MortgageListView(generics.ListCreateAPIView):
+    """
+    GET  /api/mortgages/ -> saved calculator scenarios, oldest first.
+    POST /api/mortgages/ {"data": "<JSON string>"} -> save a scenario.
+
+    Login required: the Calculator page is members-only, and so is its data.
+    """
     queryset = Mortgage.objects.all().order_by('id')
     serializer_class = MortgageSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     pagination_class = None
 
 
-class TopicListView(generics.ListAPIView):
-    """GET /api/topics/ -> all rows from myapp_v1.topics as a plain JSON array."""
-    queryset = Topic.objects.all().order_by('-created_date', '-tp_id')
+class MortgageDetailView(generics.DestroyAPIView):
+    """DELETE /api/mortgages/<id>/ -> remove a saved scenario."""
+    queryset = Mortgage.objects.all()
+    serializer_class = MortgageSerializer
+    permission_classes = [IsAuthenticated]
+
+
+TOPICS_PAGE_SIZE = 30
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def topic_list(request):
+    """
+    GET /api/topics/ -> one page of topics, newest first:
+      ?date=YYYY-MM-DD | all   (default: the most recent day that has any)
+      ?source=hackernews       (optional)
+      ?q=text                  (optional, matches the title)
+      ?page=N                  (30 per page; out-of-range pages clamp)
+
+    Returns {"date", "count", "page", "pages", "sources", "results"}.
+    "sources" counts every source on the chosen day(s), ignoring ?source
+    and ?q, so the filter chips stay put while you filter.
+
+    Public: anyone can browse what's trending. Logged-in users also get the
+    private AI fields (see TopicSerializer vs PublicTopicSerializer).
+    """
+    params = request.query_params
+    topics = Topic.objects.all()
+    if params.get('date') == 'all':
+        day = 'all'
+    else:
+        day = parse_date(params.get('date') or '') or (
+            Topic.objects.order_by('-created_date').values_list('created_date', flat=True).first()
+        )
+        topics = topics.filter(created_date=day)
+
+    sources = [
+        {"source": r['source'], "count": r['count']}
+        for r in topics.values('source').annotate(count=Count('tp_id')).order_by('source')
+    ]
+    if params.get('source'):
+        topics = topics.filter(source=params['source'])
+    if params.get('q'):
+        topics = topics.filter(content__icontains=params['q'])
+
+    page = Paginator(topics.order_by('-created_date', '-tp_id'), TOPICS_PAGE_SIZE).get_page(
+        params.get('page')
+    )
+    serializer = TopicSerializer if request.user.is_authenticated else PublicTopicSerializer
+    return Response({
+        "date": day,
+        "count": page.paginator.count,
+        "page": page.number,
+        "pages": page.paginator.num_pages,
+        "sources": sources,
+        "results": serializer(page.object_list, many=True).data,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def topic_dates(request):
+    """GET /api/topics/dates/ -> [{"date": ..., "count": ...}] newest first, for the date picker."""
+    rows = (
+        Topic.objects.exclude(created_date=None)
+        .values('created_date')
+        .annotate(count=Count('tp_id'))
+        .order_by('-created_date')
+    )
+    return Response([{"date": r['created_date'], "count": r['count']} for r in rows])
+
+
+class TopicDetailView(generics.RetrieveDestroyAPIView):
+    """
+    GET    /api/topics/<id>/ -> one topic (the page polls this while AI works).
+    DELETE /api/topics/<id>/ -> remove a topic you don't care about.
+    """
+    queryset = Topic.objects.all()
     serializer_class = TopicSerializer
-    permission_classes = [AllowAny]
-    pagination_class = None
+    permission_classes = [IsAuthenticated]
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def topics_collect(request):
+    """
+    POST /api/topics/collect/ -> fetch trending items from every source now
+    (same as `manage.py collect_topics`). Takes ~10s; returns per-source
+    counts or errors.
+    """
+    return Response(collect_topics())
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def topic_suggest(request, pk):
+    """
+    POST /api/topics/<id>/suggest/ {"question": optional} -> queue this topic
+    for Claude Code. Returns immediately with ai_status='pending'; the host's
+    scripts/ai_worker.py answers within a minute or two, and the page polls
+    GET /api/topics/<id>/ until ai_status is 'done' or 'error'.
+    """
+    topic = get_object_or_404(Topic, pk=pk)
+    topic.ai_status = Topic.AI_PENDING
+    topic.ai_question = (request.data.get('question') or '').strip() or None
+    topic.ai_requested_at = timezone.now()
+    topic.save(update_fields=['ai_status', 'ai_question', 'ai_requested_at'])
+    return Response(TopicSerializer(topic).data, status=202)
 
 
 # ---------------------------------------------------------------------------

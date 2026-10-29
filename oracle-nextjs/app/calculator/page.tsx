@@ -1,57 +1,29 @@
-type MortgageRow = { id: number; data: string | null };
-
-// Backend base URL for server-side fetches:
-//   - local dev:  unset -> http://localhost:8000 (Django runserver)
-//   - Docker:     BACKEND_URL=http://backend:8000 (set in docker-compose.yml)
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
-
-async function getRows(): Promise<MortgageRow[]> {
-  const res = await fetch(`${BACKEND_URL}/api/mortgages/`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Backend responded ${res.status}`);
-  return res.json();
-}
+import { getWithSession } from "../lib/backend";
+import MortgageCalculator, { type MortgageRow } from "./MortgageCalculator";
 
 export default async function Calculator() {
   let rows: MortgageRow[] = [];
   let error: string | null = null;
   try {
-    rows = await getRows();
+    rows = await getWithSession<MortgageRow[]>("/api/mortgages/");
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
 
   return (
-    <main className="mx-auto max-w-2xl p-8">
-      <h1 className="mb-1 text-2xl font-semibold">Calculator</h1>
-      <p className="mb-6 text-sm text-gray-500">
-        Data read from the <code>mortgage</code> table in the{" "}
-        <code>myapp_v1</code> schema, via the Django API.
+    <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-12">
+      <h1 className="mb-1 text-3xl font-extrabold tracking-tight">Mortgage calculator</h1>
+      <p className="mb-8 text-sm text-foreground/60">
+        Payments, interest and payoff time. Saved scenarios are stored in the{" "}
+        <code>mortgage</code> table.
       </p>
 
-      {error ? (
-        <p className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700">
-          Failed to load: {error}
+      {error && (
+        <p className="mb-6 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
+          Couldn&apos;t load saved scenarios: {error}
         </p>
-      ) : rows.length === 0 ? (
-        <p className="text-sm text-gray-500">No rows in myapp_v1.mortgage yet.</p>
-      ) : (
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="border-b-2 border-gray-300 text-left">
-              <th className="py-2 pr-4 font-medium">id</th>
-              <th className="py-2 font-medium">data</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-b border-gray-200">
-                <td className="py-2 pr-4 tabular-nums">{row.id}</td>
-                <td className="py-2">{row.data}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       )}
+      <MortgageCalculator initialRows={rows} />
     </main>
   );
 }

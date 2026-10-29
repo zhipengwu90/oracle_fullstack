@@ -1,0 +1,69 @@
+name: CI
+
+# Runs on every pull request (and on main after a merge), so a broken change
+# shows up as a red X on the PR *before* merging deploys it to production.
+# Turn on "Require status checks to pass" for main in the repo's branch
+# rules to make a green run mandatory.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17   # same major version as the production host
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: oracle-backend/backend
+    env:
+      DJANGO_SECRET_KEY: ci-only-not-secret
+      DB_NAME: ci
+      DB_USER: ci
+      DB_PASSWORD: ci
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      DB_SCHEMA: public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"   # matches oracle-backend/Dockerfile
+          cache: pip
+          cache-dependency-path: oracle-backend/requirements.txt
+      - run: pip install -r ../requirements.txt
+      - run: python manage.py check
+      - run: python manage.py test api --noinput
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: oracle-nextjs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"   # matches oracle-nextjs/Dockerfile
+          cache: npm
+          cache-dependency-path: oracle-nextjs/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm run build

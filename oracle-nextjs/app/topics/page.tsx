@@ -1,73 +1,51 @@
-type TopicRow = {
-  tp_id: number;
-  source: string | null;
-  content: string | null;
-  created_date: string | null;
-  ai_suggestion: string | null;
-};
+import { getWithSession } from "../lib/backend";
+import TopicsBoard, { type TopicDate, type TopicPage, type TopicQuery } from "./TopicsBoard";
 
-// Backend base URL for server-side fetches:
-//   - local dev:  unset -> http://localhost:8000 (Django runserver)
-//   - Docker:     BACKEND_URL=http://backend:8000 (set in docker-compose.yml)
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
-
-async function getRows(): Promise<TopicRow[]> {
-  const res = await fetch(`${BACKEND_URL}/api/topics/`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Backend responded ${res.status}`);
-  return res.json();
-}
-
-export default async function Topics() {
-  let rows: TopicRow[] = [];
+export default async function Trending({
+  searchParams,
+}: {
+  searchParams: Promise<TopicQuery & { page?: string }>;
+}) {
+  const { date, source, q, page } = await searchParams;
+  const query: TopicQuery = { date, source, q };
+  let dates: TopicDate[] = [];
+  let data: TopicPage | null = null;
+  let loggedIn = false;
   let error: string | null = null;
   try {
-    rows = await getRows();
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries({ ...query, page })) {
+      if (value) params.set(key, value);
+    }
+    [{ authenticated: loggedIn }, dates, data] = await Promise.all([
+      getWithSession<{ authenticated: boolean }>("/api/whoami/"),
+      getWithSession<TopicDate[]>("/api/topics/dates/"),
+      getWithSession<TopicPage>(`/api/topics/?${params}`),
+    ]);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
 
   return (
-    <main className="mx-auto max-w-4xl p-8">
-      <h1 className="mb-1 text-2xl font-semibold">Topics</h1>
-      <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">
-        Data read from the <code>topics</code> table in the{" "}
-        <code>myapp_v1</code> schema, via the Django API.
+    <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
+      <p className="mb-2 flex items-center gap-2 text-sm font-bold tracking-widest text-accent uppercase">
+        <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+        Updated every 6 hours
+      </p>
+      <h1 className="mb-3 text-3xl font-extrabold tracking-tight sm:text-4xl">Trending</h1>
+      <p className="mb-8 max-w-2xl text-sm text-foreground/70">
+        What people are talking about right now. Collected automatically from Hacker News,
+        Reddit, Google Trends, Bluesky, Mastodon, GitHub, dev.to and Lobsters. Pick a
+        day to see what was hot then, and click any headline to read the original.
+        {loggedIn && " You can also ask AI for content ideas on any topic."}
       </p>
 
-      {error ? (
+      {error || !data ? (
         <p className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
           Failed to load: {error}
         </p>
-      ) : rows.length === 0 ? (
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          No rows in myapp_v1.topics yet.
-        </p>
       ) : (
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="border-b-2 border-gray-300 text-left dark:border-gray-700">
-              <th className="py-2 pr-4 font-medium">Source</th>
-              <th className="py-2 pr-4 font-medium">Content</th>
-              <th className="py-2 pr-4 font-medium">Created</th>
-              <th className="py-2 font-medium">AI Suggestion</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr
-                key={row.tp_id}
-                className="border-b border-gray-200 align-top dark:border-gray-800"
-              >
-                <td className="py-2 pr-4">{row.source}</td>
-                <td className="py-2 pr-4">{row.content}</td>
-                <td className="py-2 pr-4 whitespace-nowrap">
-                  {row.created_date}
-                </td>
-                <td className="py-2">{row.ai_suggestion}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <TopicsBoard dates={dates} data={data} query={query} canEdit={loggedIn} />
       )}
     </main>
   );

@@ -19,10 +19,22 @@ class MortgageSerializer(serializers.ModelSerializer):
         fields = ['id', 'data']
 
 
-class TopicSerializer(serializers.ModelSerializer):
+class PublicTopicSerializer(serializers.ModelSerializer):
+    """What logged-out visitors see: the trending item only."""
     class Meta:
         model = Topic
-        fields = ['tp_id', 'source', 'content', 'created_date', 'ai_suggestion']
+        fields = ['tp_id', 'source', 'content', 'url', 'created_date']
+        read_only_fields = fields
+
+
+class TopicSerializer(serializers.ModelSerializer):
+    """Logged-in view: adds the private AI suggestion and its queue state."""
+    class Meta:
+        model = Topic
+        fields = PublicTopicSerializer.Meta.fields + [
+            'ai_suggestion', 'ai_status', 'ai_question', 'ai_requested_at',
+        ]
+        read_only_fields = fields
 
 
 # ---------------------------------------------------------------------------

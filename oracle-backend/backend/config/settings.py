@@ -166,6 +166,9 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Creates the api app's managed=False tables in the test database.
+TEST_RUNNER = 'api.test_runner.UnmanagedModelTestRunner'
+
 # ---------------------------------------------------------------------------
 # Logging — send request errors (incl. 500 tracebacks) to stdout so they
 # show up in `docker compose logs backend`, even with DEBUG=False.

@@ -40,6 +40,9 @@ function PublicLinks({
       <Link href="/about" onClick={onNavigate} className={navLinkClass(pathname === "/about")}>
         About
       </Link>
+      <Link href="/topics" onClick={onNavigate} className={navLinkClass(pathname === "/topics")}>
+        Trending
+      </Link>
     </>
   );
 }
@@ -62,9 +65,6 @@ function MenuLinks({
         className={navLinkClass(pathname === "/calculator")}
       >
         Calculator
-      </Link>
-      <Link href="/topics" onClick={onNavigate} className={navLinkClass(pathname === "/topics")}>
-        Topics
       </Link>
       {/* Django Admin isn't a Next.js route - a plain <a> forces a full
           navigation instead of Next's client-side router, which has no

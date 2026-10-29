@@ -9,8 +9,15 @@ class Mortgage(models.Model):
     migrations; it only reads/writes rows. The bare db_table = 'mortgage'
     resolves to myapp_v1.mortgage through the connection search_path
     (DB_SCHEMA=myapp_v1, set in settings.py / .env).
+
+    id is BigAutoField (not BigIntegerField) because the column is
+    GENERATED ALWAYS AS IDENTITY: an auto field is left out of INSERTs so
+    Postgres assigns it; sending an explicit value would be rejected.
+
+    data holds one saved calculator scenario as a JSON string (older rows
+    may be free text - readers must tolerate that).
     """
-    id = models.BigIntegerField(primary_key=True)
+    id = models.BigAutoField(primary_key=True)
     data = models.TextField(blank=True, null=True)
 
     class Meta:
@@ -22,13 +29,28 @@ class Topic(models.Model):
     """
     Maps to the existing "topics" table in the myapp_v1 schema.
 
-    managed = False, same reasoning as Mortgage above.
+    managed = False, and tp_id is an identity column, same reasoning as
+    Mortgage above. url and the ai_* queue columns were added by
+    sql/topics_upgrade.sql.
+
+    "Ask AI" is a queue, not a live call: the API sets ai_status='pending',
+    and scripts/ai_worker.py on the host runs Claude Code and writes back
+    ai_suggestion with status 'done' (or the error text with 'error').
     """
-    tp_id = models.BigIntegerField(primary_key=True)
+    AI_PENDING = 'pending'
+    AI_RUNNING = 'running'
+    AI_DONE = 'done'
+    AI_ERROR = 'error'
+
+    tp_id = models.BigAutoField(primary_key=True)
     source = models.TextField(blank=True, null=True)
     content = models.TextField(blank=True, null=True)
+    url = models.TextField(blank=True, null=True)
     created_date = models.DateField(blank=True, null=True)
     ai_suggestion = models.TextField(blank=True, null=True)
+    ai_status = models.TextField(blank=True, null=True)
+    ai_question = models.TextField(blank=True, null=True)
+    ai_requested_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         managed = False
