@@ -1,13 +1,16 @@
+import anthropic
 from django.contrib.auth import authenticate, login as django_login, logout as django_logout
 from django.db import connection
 from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
 from rest_framework import generics
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from .ai import AINotConfigured, AIRefused, suggest_for_topic
 from .models import Experience, Mortgage, Profile, Project, SocialLink, Skill, Stat, Topic
+from .topic_sources import collect_topics
 from .serializers import (
     ExperienceSerializer,
     MortgageSerializer,
@@ -105,20 +108,77 @@ def logout_view(request):
     return Response({"authenticated": False})
 
 
-class MortgageListView(generics.ListAPIView):
-    """GET /api/mortgages/ -> all rows from myapp_v1.mortgage as a plain JSON array."""
+class MortgageListView(generics.ListCreateAPIView):
+    """
+    GET  /api/mortgages/ -> saved calculator scenarios, oldest first.
+    POST /api/mortgages/ {"data": "<JSON string>"} -> save a scenario.
+
+    Login required: the Calculator page is members-only, and so is its data.
+    """
     queryset = Mortgage.objects.all().order_by('id')
     serializer_class = MortgageSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     pagination_class = None
+
+
+class MortgageDetailView(generics.DestroyAPIView):
+    """DELETE /api/mortgages/<id>/ -> remove a saved scenario."""
+    queryset = Mortgage.objects.all()
+    serializer_class = MortgageSerializer
+    permission_classes = [IsAuthenticated]
+
+
+# Enough for a few weeks of daily collection without the page getting huge.
+TOPIC_LIST_LIMIT = 300
 
 
 class TopicListView(generics.ListAPIView):
-    """GET /api/topics/ -> all rows from myapp_v1.topics as a plain JSON array."""
-    queryset = Topic.objects.all().order_by('-created_date', '-tp_id')
+    """GET /api/topics/ -> newest topics from myapp_v1.topics as a plain JSON array."""
     serializer_class = TopicSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     pagination_class = None
+
+    def get_queryset(self):
+        return Topic.objects.order_by('-created_date', '-tp_id')[:TOPIC_LIST_LIMIT]
+
+
+class TopicDetailView(generics.DestroyAPIView):
+    """DELETE /api/topics/<id>/ -> remove a topic you don't care about."""
+    queryset = Topic.objects.all()
+    serializer_class = TopicSerializer
+    permission_classes = [IsAuthenticated]
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def topics_collect(request):
+    """
+    POST /api/topics/collect/ -> fetch trending items from every source now
+    (same as `manage.py collect_topics`). Takes ~10-30s; returns per-source
+    counts or errors.
+    """
+    return Response(collect_topics())
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def topic_suggest(request, pk):
+    """
+    POST /api/topics/<id>/suggest/ {"question": optional} -> ask Claude for
+    content ideas about this topic, save them to ai_suggestion, and return
+    the updated topic.
+    """
+    topic = get_object_or_404(Topic, pk=pk)
+    try:
+        topic.ai_suggestion = suggest_for_topic(topic, request.data.get('question', ''))
+    except AINotConfigured as exc:
+        return Response({"error": str(exc)}, status=503)
+    except AIRefused as exc:
+        return Response({"error": str(exc)}, status=422)
+    except anthropic.APIError as exc:
+        return Response({"error": f"AI request failed: {exc}"}, status=502)
+    topic.save(update_fields=['ai_suggestion'])
+    return Response(TopicSerializer(topic).data)
 
 
 # ---------------------------------------------------------------------------

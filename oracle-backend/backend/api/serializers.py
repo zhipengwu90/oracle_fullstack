@@ -22,7 +22,8 @@ class MortgageSerializer(serializers.ModelSerializer):
 class TopicSerializer(serializers.ModelSerializer):
     class Meta:
         model = Topic
-        fields = ['tp_id', 'source', 'content', 'created_date', 'ai_suggestion']
+        fields = ['tp_id', 'source', 'content', 'url', 'created_date', 'ai_suggestion']
+        read_only_fields = fields
 
 
 # ---------------------------------------------------------------------------
