@@ -130,9 +130,14 @@ class MortgageDetailView(generics.DestroyAPIView):
     permission_classes = [IsAuthenticated]
 
 
+# "All days" view: newest first, capped so the page stays fast as history grows.
+ALL_TOPICS_LIMIT = 500
+
+
 class TopicListView(generics.ListAPIView):
     """
     GET /api/topics/?date=YYYY-MM-DD -> that day's topics, newest first.
+    GET /api/topics/?date=all        -> every day, newest first (capped).
     Without ?date, returns the most recent day that has any.
 
     Public: anyone can browse what's trending. Logged-in users also get the
@@ -147,7 +152,10 @@ class TopicListView(generics.ListAPIView):
         return PublicTopicSerializer
 
     def get_queryset(self):
-        day = parse_date(self.request.query_params.get('date') or '')
+        param = self.request.query_params.get('date') or ''
+        if param == 'all':
+            return Topic.objects.order_by('-created_date', '-tp_id')[:ALL_TOPICS_LIMIT]
+        day = parse_date(param)
         if day is None:
             day = Topic.objects.order_by('-created_date').values_list('created_date', flat=True).first()
         return Topic.objects.filter(created_date=day).order_by('-tp_id')

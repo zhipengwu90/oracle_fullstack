@@ -22,6 +22,9 @@ type CollectResult = Record<string, { added: number; skipped: number } | { error
 
 const POLL_MS = 5000;
 
+// Special ?date= value for "every day at once".
+export const ALL_DAYS = "all";
+
 async function errorMessage(res: Response) {
   try {
     const data = await res.json();
@@ -50,11 +53,13 @@ function isWaiting(t: TopicRow) {
 function TopicItem({
   topic,
   canEdit,
+  showDate,
   onChange,
   onDelete,
 }: {
   topic: TopicRow;
   canEdit: boolean;
+  showDate: boolean;
   onChange: (t: TopicRow) => void;
   onDelete: () => void;
 }) {
@@ -95,6 +100,9 @@ function TopicItem({
       <span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-accent">
         {topic.source}
       </span>
+      {showDate && topic.created_date && (
+        <span className="ml-2 text-xs text-foreground/50">{formatDay(topic.created_date)}</span>
+      )}
       <p className="mt-1 font-medium">
         {topic.url ? (
           <a href={topic.url} target="_blank" rel="noopener noreferrer" className="hover:text-accent hover:underline">
@@ -200,6 +208,8 @@ export default function TopicsBoard({
   const newer = index > 0 ? dates[index - 1].date : null;
   const older = index >= 0 && index < dates.length - 1 ? dates[index + 1].date : null;
   const goTo = (day: string) => router.push(`/topics?date=${day}`);
+  const allDays = selectedDate === ALL_DAYS;
+  const totalCount = dates.reduce((n, d) => n + d.count, 0);
 
   async function collect() {
     setCollecting(true);
@@ -209,11 +219,16 @@ export default function TopicsBoard({
       const res = await fetch("/api/topics/collect/", { method: "POST", headers: csrfHeaders() });
       if (!res.ok) throw new Error(await errorMessage(res));
       setCollectResult(await res.json());
-      // /api/topics/ with no date returns the newest day, where new items land.
-      const latest = await fetch("/api/topics/");
-      const rows: TopicRow[] = latest.ok ? await latest.json() : [];
-      if (rows[0]?.created_date === selectedDate) setTopics(rows);
-      else router.push("/topics"); // a new day appeared: switch to it
+      if (allDays) {
+        const list = await fetch(`/api/topics/?date=${ALL_DAYS}`);
+        if (list.ok) setTopics(await list.json());
+      } else {
+        // /api/topics/ with no date returns the newest day, where new items land.
+        const latest = await fetch("/api/topics/");
+        const rows: TopicRow[] = latest.ok ? await latest.json() : [];
+        if (rows[0]?.created_date === selectedDate) setTopics(rows);
+        else router.push("/topics"); // a new day appeared: switch to it
+      }
       router.refresh(); // update the day list and counts
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -251,7 +266,11 @@ export default function TopicsBoard({
           aria-label="Choose a day"
           className="rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm focus:border-accent focus:outline-none"
         >
-          {dates.length === 0 && <option value="">No topics yet</option>}
+          {dates.length === 0 ? (
+            <option value="">No topics yet</option>
+          ) : (
+            <option value={ALL_DAYS}>All days ({totalCount})</option>
+          )}
           {dates.map((d) => (
             <option key={d.date} value={d.date}>
               {formatDay(d.date)} ({d.count})
@@ -265,7 +284,7 @@ export default function TopicsBoard({
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search this day"
+          placeholder={allDays ? "Search all days" : "Search this day"}
           className="min-w-0 flex-1 rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm focus:border-accent focus:outline-none sm:max-w-xs"
         />
         {canEdit && (
@@ -280,6 +299,11 @@ export default function TopicsBoard({
         )}
       </div>
 
+      {allDays && topics.length < totalCount && (
+        <p className="mb-4 text-sm text-foreground/60">
+          Showing the newest {topics.length} of {totalCount}. Pick a day to see older ones.
+        </p>
+      )}
       {collectResult && (
         <p className="mb-4 text-sm text-foreground/70">
           Added {added} new topic{added === 1 ? "" : "s"}.
@@ -311,7 +335,7 @@ export default function TopicsBoard({
 
       {visible.length === 0 ? (
         <p className="py-8 text-sm text-foreground/60">
-          {topics.length === 0 ? "Nothing collected for this day yet." : "No topics match."}
+          {topics.length === 0 ? allDays ? "Nothing collected yet." : "Nothing collected for this day yet." : "No topics match."}
         </p>
       ) : (
         <ul className="divide-y divide-foreground/10">
@@ -320,6 +344,7 @@ export default function TopicsBoard({
               key={t.tp_id}
               topic={t}
               canEdit={canEdit}
+              showDate={allDays}
               onChange={updateTopic}
               onDelete={() => remove(t.tp_id)}
             />

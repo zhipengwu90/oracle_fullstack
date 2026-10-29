@@ -84,6 +84,12 @@ class TopicApiTests(LoggedInTestCase):
         res = self.client.get(f"/api/topics/?date={self.yesterday.isoformat()}")
         self.assertEqual([r["content"] for r in res.json()], ["old"])
 
+    def test_all_days(self):
+        self.add("old", self.yesterday)
+        self.add("new", self.today)
+        res = self.client.get("/api/topics/?date=all")
+        self.assertEqual([r["content"] for r in res.json()], ["new", "old"])
+
     def test_dates_list_newest_first_with_counts(self):
         self.add("a", self.yesterday)
         self.add("b", self.today)
