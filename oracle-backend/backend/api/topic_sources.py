@@ -123,17 +123,6 @@ def lobsters(limit):
     ]
 
 
-def baidu(limit):
-    data = _get_json("https://top.baidu.com/api/board?platform=wise&tab=realtime")
-    entries = data["data"]["cards"][0]["content"]
-    # Some cards nest the real list one level down.
-    if entries and "content" in entries[0]:
-        entries = entries[0]["content"]
-    # isTop rows are pinned editorial picks, not what people are searching.
-    hot = [e for e in entries if not e.get("isTop")]
-    return [{"title": e["word"], "url": e.get("url")} for e in hot[:limit]]
-
-
 SOURCES = {
     "hackernews": hackernews,
     "reddit": reddit,
@@ -143,7 +132,6 @@ SOURCES = {
     "github": github,
     "devto": devto,
     "lobsters": lobsters,
-    "baidu": baidu,
 }
 
 # Skip an item if the same source already saved it within this many days,

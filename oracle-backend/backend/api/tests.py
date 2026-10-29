@@ -193,11 +193,3 @@ class SourceParserTests(TestCase):
           </item></channel></rss>"""
         with mock.patch.object(topic_sources, "_get", return_value=feed):
             self.assertEqual(topic_sources.googletrends(5), [{"title": "term", "url": "https://news/1"}])
-
-    def test_baidu_skips_pinned_rows(self):
-        data = {"data": {"cards": [{"content": [{"content": [
-            {"isTop": True, "word": "pinned", "url": "u0"},
-            {"isTop": False, "word": "hot", "url": "u1"},
-        ]}]}]}}
-        with mock.patch.object(topic_sources, "_get_json", return_value=data):
-            self.assertEqual(topic_sources.baidu(5), [{"title": "hot", "url": "u1"}])

@@ -35,7 +35,7 @@ export default async function Trending({
       <h1 className="mb-3 text-3xl font-extrabold tracking-tight sm:text-4xl">Trending</h1>
       <p className="mb-8 max-w-2xl text-sm text-foreground/70">
         What people are talking about right now. Collected automatically from Hacker News,
-        Reddit, Google Trends, Bluesky, Mastodon, GitHub, dev.to, Lobsters and Baidu. Pick a
+        Reddit, Google Trends, Bluesky, Mastodon, GitHub, dev.to and Lobsters. Pick a
         day to see what was hot then, and click any headline to read the original.
         {loggedIn && " You can also ask AI for content ideas on any topic."}
       </p>
