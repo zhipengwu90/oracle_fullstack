@@ -16,6 +16,8 @@ services:
       DB_HOST: ${DB_HOST:-host.docker.internal}
       DB_PORT: ${DB_PORT:-5432}
       DB_SCHEMA: ${DB_SCHEMA:-public}
+      # Optional: real-time US quotes on the Stocks page (free key, finnhub.io).
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
     extra_hosts:
       # Lets the container resolve the Docker host's own IP, so it can
       # reach PostgreSQL running directly on the Oracle VM (not in Docker).

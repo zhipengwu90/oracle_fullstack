@@ -1,8 +1,9 @@
+import urllib.error
 from datetime import date, timedelta
 from unittest import mock
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from . import stock_quotes, topic_sources
@@ -112,6 +113,67 @@ class StockApiTests(LoggedInTestCase):
             both = self.client.get("/api/stocks/search/?q=shop").json()
         self.assertEqual([(r["symbol"], r["asset_type"]) for r in ca], [("SHOP.TO", "stock"), ("SHPE.TO", "etf")])
         self.assertEqual([r["symbol"] for r in both], ["SHOP", "SHOP.TO", "SHPE.TO"])
+
+
+class QuoteSourceTests(TestCase):
+    """Yahoo is the base quote; Finnhub's real-time fields go on top for US symbols."""
+
+    def yahoo(self, symbol, exchange):
+        return {"chart": {"result": [{
+            "meta": {"symbol": symbol, "exchangeName": exchange, "instrumentType": "EQUITY", "currency": "USD",
+                     "longName": "Apple Inc.", "regularMarketPrice": 100.0, "regularMarketChangePercent": 1.0,
+                     "regularMarketTime": 1000, "fiftyTwoWeekHigh": 150.0, "fiftyTwoWeekLow": 80.0},
+            "indicators": {"quote": [{"close": [98.0, 99.0, 100.0]}]},
+        }]}}
+
+    def fetch(self, symbol, exchange, finnhub):
+        def fake(url, headers=None):
+            if "finnhub.io" in url:
+                self.finnhub_headers = headers
+                if isinstance(finnhub, Exception):
+                    raise finnhub
+                return finnhub
+            return self.yahoo(symbol, exchange)
+
+        stock_quotes._finnhub_paused_until = 0.0
+        with mock.patch.object(stock_quotes, "_get_json", side_effect=fake):
+            return stock_quotes._fetch_quote(symbol)
+
+    LIVE = {"c": 101.5, "d": 2.5, "dp": 2.5253, "h": 102.0, "l": 99.0, "o": 99.5, "pc": 99.0, "t": 2000}
+
+    @override_settings(FINNHUB_API_KEY="k")
+    def test_us_symbol_gets_finnhub_live_fields(self):
+        q = self.fetch("AAPL", "NMS", self.LIVE)
+        self.assertEqual((q["price"], q["change"], q["market_time"], q["source"]), (101.5, 2.5, 2000, "finnhub"))
+        # Yahoo still supplies what Finnhub's quote doesn't have.
+        self.assertEqual((q["name"], q["year_high"], q["history"]), ("Apple Inc.", 150.0, [98.0, 99.0, 100.0]))
+        self.assertEqual(self.finnhub_headers, {"X-Finnhub-Token": "k"})
+
+    @override_settings(FINNHUB_API_KEY="k")
+    def test_canadian_symbol_stays_on_yahoo(self):
+        q = self.fetch("SHOP.TO", "TOR", self.LIVE)
+        self.assertEqual((q["price"], q["source"]), (100.0, "yahoo"))
+
+    @override_settings(FINNHUB_API_KEY="")
+    def test_no_key_means_yahoo_only(self):
+        self.assertEqual(self.fetch("AAPL", "NMS", self.LIVE)["source"], "yahoo")
+
+    @override_settings(FINNHUB_API_KEY="k")
+    def test_finnhub_failures_fall_back_to_yahoo(self):
+        unknown = {"c": 0, "d": None, "dp": None, "h": 0, "l": 0, "o": 0, "pc": 0, "t": 0}
+        self.assertEqual(self.fetch("AAPL", "NMS", unknown)["source"], "yahoo")
+        self.assertEqual(self.fetch("AAPL", "NMS", OSError("down"))["source"], "yahoo")
+
+    @override_settings(FINNHUB_API_KEY="k")
+    def test_rate_limit_pauses_finnhub(self):
+        limited = urllib.error.HTTPError("u", 429, "Too Many Requests", {}, None)
+        self.assertEqual(self.fetch("AAPL", "NMS", limited)["source"], "yahoo")
+        # Still paused, so Finnhub isn't even asked (its good answer goes unused).
+        with mock.patch.object(stock_quotes, "_get_json", side_effect=lambda url, headers=None: (
+            self.fail("Finnhub called while paused") if "finnhub.io" in url else self.yahoo("AAPL", "NMS")
+        )):
+            self.assertEqual(stock_quotes._fetch_quote("AAPL")["source"], "yahoo")
+        stock_quotes._finnhub_paused_until = 0.0
 
 
 class TopicApiTests(LoggedInTestCase):

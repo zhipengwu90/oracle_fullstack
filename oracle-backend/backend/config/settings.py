@@ -226,3 +226,9 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = env.bool('DJANGO_SECURE_SSL_REDIRECT', default=False)
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+
+# ---------------------------------------------------------------------------
+# Stocks page: free Finnhub key (finnhub.io) for real-time US quotes.
+# Optional - without it every quote comes from Yahoo, a few minutes behind.
+# ---------------------------------------------------------------------------
+FINNHUB_API_KEY = env('FINNHUB_API_KEY', default='')
