@@ -1,7 +1,7 @@
 from django.contrib.auth import authenticate, login as django_login, logout as django_logout
 from django.core.paginator import Paginator
 from django.db import connection
-from django.db.models import Count
+from django.db.models import Count, Max
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.middleware.csrf import get_token
@@ -129,14 +129,14 @@ def stock_list(request):
          "quote" (null if Yahoo no longer knows the symbol, {"error": ...} if
          the fetch failed).
     POST /api/stocks/ {"symbol": "SHOP", "market": "CA"|"US"} -> start
-         tracking it. The symbol is checked against Yahoo first; for Canada a
+         tracking it, at the bottom of the list. The symbol is checked against Yahoo first; for Canada a
          bare ticker is resolved to its exchange listing (SHOP -> SHOP.TO).
          Stock vs ETF and the name come from Yahoo, not the client.
 
     Each user only ever sees and edits their own list.
     """
     if request.method == 'GET':
-        stocks = TrackedStock.objects.filter(user=request.user).order_by('market', 'symbol')
+        stocks = TrackedStock.objects.filter(user=request.user).order_by('position', 'id')
         return Response(_with_quotes(stocks))
 
     market = request.data.get('market')
@@ -149,10 +149,12 @@ def stock_list(request):
     except (OSError, ValueError) as exc:
         return Response({"error": f"Couldn't reach Yahoo Finance: {exc}"}, status=502)
 
+    last = TrackedStock.objects.filter(user=request.user).aggregate(Max('position'))['position__max']
     stock, created = TrackedStock.objects.get_or_create(
         user=request.user,
         symbol=quote['symbol'],
         defaults={
+            'position': 0 if last is None else last + 1,
             'market': market,
             'asset_type': stock_quotes.ASSET_TYPES[quote['instrument_type']],
             'name': (quote['name'] or '')[:200] or None,
@@ -163,6 +165,25 @@ def stock_list(request):
     row = TrackedStockSerializer(stock).data
     row['quote'] = quote
     return Response(row, status=201)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def stock_order(request):
+    """
+    POST /api/stocks/order/ {"ids": [5, 2, 9]} -> save the user's order:
+    each id's position becomes its index. Ids that aren't the user's are
+    ignored; rows left out keep their old position.
+    """
+    ids = request.data.get('ids')
+    if not isinstance(ids, list) or not all(type(i) is int for i in ids):
+        return Response({"error": "ids must be a list of row ids."}, status=400)
+    index = {pk: i for i, pk in enumerate(ids)}
+    stocks = list(TrackedStock.objects.filter(user=request.user, pk__in=index))
+    for stock in stocks:
+        stock.position = index[stock.pk]
+    TrackedStock.objects.bulk_update(stocks, ['position'])
+    return Response(status=204)
 
 
 class StockDetailView(generics.DestroyAPIView):

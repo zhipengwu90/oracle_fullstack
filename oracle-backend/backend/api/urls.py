@@ -9,6 +9,7 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('stocks/', views.stock_list, name='stock-list'),
     path('stocks/search/', views.stock_search, name='stock-search'),
+    path('stocks/order/', views.stock_order, name='stock-order'),
     path('stocks/<int:pk>/', views.StockDetailView.as_view(), name='stock-detail'),
     path('topics/', views.topic_list, name='topic-list'),
     path('topics/dates/', views.topic_dates, name='topic-dates'),

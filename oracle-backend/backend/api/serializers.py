@@ -16,7 +16,7 @@ from .models import (
 class TrackedStockSerializer(serializers.ModelSerializer):
     class Meta:
         model = TrackedStock
-        fields = ['id', 'symbol', 'market', 'asset_type', 'name', 'created_at']
+        fields = ['id', 'symbol', 'market', 'asset_type', 'name', 'position', 'created_at']
         read_only_fields = fields
 
 

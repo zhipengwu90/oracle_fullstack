@@ -17,6 +17,10 @@ CREATE TABLE IF NOT EXISTS stock_watch (
     market      VARCHAR(2) NOT NULL CHECK (market IN ('CA', 'US')),
     asset_type  VARCHAR(10) NOT NULL CHECK (asset_type IN ('stock', 'etf')),
     name        VARCHAR(200),
+    position    INTEGER NOT NULL DEFAULT 0,                            -- the user's own order (drag to reorder)
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (user_id, symbol)
 );
+
+-- Added after the table first shipped; a no-op on fresh installs.
+ALTER TABLE stock_watch ADD COLUMN IF NOT EXISTS position INTEGER NOT NULL DEFAULT 0;
