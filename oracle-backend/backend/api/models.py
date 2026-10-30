@@ -59,6 +59,7 @@ class TrackedStock(models.Model):
     market = models.CharField(max_length=2)
     asset_type = models.CharField(max_length=10)
     name = models.CharField(max_length=200, blank=True, null=True)
+    position = models.IntegerField(default=0)  # the user's own order; ties fall back to id
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -31,6 +31,7 @@ export type StockRow = {
   market: Market;
   asset_type: AssetType;
   name: string | null;
+  position: number;
   created_at: string;
   quote: Quote | { error: string } | null;
 };
@@ -341,6 +342,18 @@ function AddStock({ onAdded }: { onAdded: (row: StockRow) => void }) {
   );
 }
 
+// Move the visible row at `from` to `to`. Rows hidden by a filter keep
+// their slots, so reordering "Canada only" never shuffles the US rows.
+function reorder(all: StockRow[], visibleIds: number[], from: number, to: number) {
+  const moved = [...visibleIds];
+  const [id] = moved.splice(from, 1);
+  moved.splice(to, 0, id);
+  const byId = new Map(all.map((r) => [r.id, r]));
+  const shown = new Set(visibleIds);
+  let k = 0;
+  return all.map((r) => (shown.has(r.id) ? byId.get(moved[k++])! : r));
+}
+
 export default function StockTracker({ initialRows }: { initialRows: StockRow[] }) {
   const [rows, setRows] = useState(initialRows);
   const [marketFilter, setMarketFilter] = useState<Market | "all">("all");
@@ -352,8 +365,13 @@ export default function StockTracker({ initialRows }: { initialRows: StockRow[] 
   // Last seen price per row id; only read and written inside refresh().
   const pricesRef = useRef(priceMap(initialRows));
   const [error, setError] = useState<string | null>(null);
+  const [dragId, setDragId] = useState<number | null>(null);
+  // Polling would snap a row back mid-drag; only touched in event handlers.
+  const draggingRef = useRef(false);
+  const tbodyRef = useRef<HTMLTableSectionElement>(null);
 
   const refresh = useCallback(async () => {
+    if (draggingRef.current) return;
     setRefreshing(true);
     try {
       const res = await fetch("/api/stocks/", { cache: "no-store" });
@@ -393,9 +411,60 @@ export default function StockTracker({ initialRows }: { initialRows: StockRow[] 
   }
 
   function added(row: StockRow) {
-    setRows((prev) =>
-      [...prev, row].sort((a, b) => a.market.localeCompare(b.market) || a.symbol.localeCompare(b.symbol)),
-    );
+    setRows((prev) => [...prev, row]); // the server puts new symbols last too
+  }
+
+  async function saveOrder(ordered: StockRow[]) {
+    const res = await fetch("/api/stocks/order/", {
+      method: "POST",
+      headers: csrfHeaders(),
+      body: JSON.stringify({ ids: ordered.map((r) => r.id) }),
+    });
+    if (!res.ok) setError(`Couldn't save the new order: ${await errorMessage(res)}`);
+  }
+
+  function moveTo(id: number, to: number) {
+    const visibleIds = visible.map((r) => r.id);
+    const from = visibleIds.indexOf(id);
+    if (from < 0 || to < 0 || to >= visibleIds.length || to === from) return null;
+    const next = reorder(rows, visibleIds, from, to);
+    setRows(next);
+    return next;
+  }
+
+  // Drag by the handle. Pointer events (not HTML drag-and-drop) so it works
+  // with touch on iPad/iPhone as well as a mouse.
+  function onHandleDown(e: React.PointerEvent<HTMLButtonElement>, id: number) {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    draggingRef.current = true;
+    setDragId(id);
+  }
+
+  function onHandleMove(e: React.PointerEvent<HTMLButtonElement>) {
+    if (dragId === null || !tbodyRef.current) return;
+    // Target index = how many of the *other* rows sit above the pointer.
+    let to = 0;
+    for (const tr of Array.from(tbodyRef.current.rows)) {
+      if (Number(tr.dataset.id) === dragId) continue;
+      const box = tr.getBoundingClientRect();
+      if (e.clientY > box.top + box.height / 2) to++;
+    }
+    moveTo(dragId, to);
+  }
+
+  function onHandleUp() {
+    if (dragId === null) return;
+    draggingRef.current = false;
+    setDragId(null);
+    saveOrder(rows);
+  }
+
+  function onHandleKey(e: React.KeyboardEvent<HTMLButtonElement>, id: number, index: number) {
+    if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+    e.preventDefault();
+    const next = moveTo(id, index + (e.key === "ArrowUp" ? -1 : 1));
+    if (next) saveOrder(next);
   }
 
   const count = (market: Market | "all", type: AssetType | "all") =>
@@ -457,6 +526,7 @@ export default function StockTracker({ initialRows }: { initialRows: StockRow[] 
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-foreground/10 text-left text-xs text-foreground/50 uppercase">
+                <th className="w-6 py-2" aria-label="Reorder" />
                 <th className="py-2 pr-3 font-medium">Symbol</th>
                 <th className="py-2 pr-3 text-right font-medium">Price</th>
                 <th className="py-2 pr-3 text-right font-medium">Today</th>
@@ -465,13 +535,34 @@ export default function StockTracker({ initialRows }: { initialRows: StockRow[] 
                 <th className="py-2" aria-label="Remove" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-foreground/10">
-              {visible.map((row) => {
+            <tbody ref={tbodyRef} className="divide-y divide-foreground/10">
+              {visible.map((row, index) => {
                 const q = hasQuote(row.quote) ? row.quote : null;
                 const move = moves[row.id];
                 const stale = q?.market_time != null && updatedAt.getTime() - q.market_time * 1000 > STALE_MS;
                 return (
-                  <tr key={row.id} className="align-middle">
+                  <tr
+                    key={row.id}
+                    data-id={row.id}
+                    className={`align-middle ${dragId === row.id ? "relative z-10 bg-foreground/5 shadow-lg" : ""}`}
+                  >
+                    <td className="py-3 pr-1">
+                      <button
+                        type="button"
+                        onPointerDown={(e) => onHandleDown(e, row.id)}
+                        onPointerMove={onHandleMove}
+                        onPointerUp={onHandleUp}
+                        onPointerCancel={onHandleUp}
+                        onKeyDown={(e) => onHandleKey(e, row.id, index)}
+                        aria-label={`Move ${row.symbol} (drag, or use the arrow keys)`}
+                        title="Drag to reorder"
+                        className={`touch-none rounded px-1 text-lg leading-none text-foreground/30 select-none hover:text-foreground/70 ${
+                          dragId === row.id ? "cursor-grabbing text-accent" : "cursor-grab"
+                        }`}
+                      >
+                        ⠿
+                      </button>
+                    </td>
                     <td className="py-3 pr-3">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold">{row.symbol}</span>

@@ -90,6 +90,31 @@ class StockApiTests(LoggedInTestCase):
         self.assertIn("already tracking", self.add("AAPL", "US").json()["error"])
         self.assertEqual(TrackedStock.objects.count(), 1)
 
+    def test_new_symbols_go_last_and_order_can_be_saved(self):
+        self.login()
+        ids = [self.add(sym, mkt).json()["id"] for sym, mkt in [("AAPL", "US"), ("SHOP", "CA"), ("VOO", "US")]]
+        symbols = lambda: [r["symbol"] for r in self.client.get("/api/stocks/").json()]
+        self.assertEqual(symbols(), ["AAPL", "SHOP.TO", "VOO"])
+
+        res = self.client.post("/api/stocks/order/", {"ids": [ids[2], ids[0], ids[1]]}, format="json")
+        self.assertEqual(res.status_code, 204)
+        self.assertEqual(symbols(), ["VOO", "AAPL", "SHOP.TO"])
+        # Added after a reorder -> still goes to the bottom.
+        self.add("XIC", "CA")
+        self.assertEqual(symbols(), ["VOO", "AAPL", "SHOP.TO", "XIC.TO"])
+
+    def test_order_ignores_other_users_rows_and_rejects_junk(self):
+        other = User.objects.create_user("other", password="pw")
+        theirs = TrackedStock.objects.create(user=other, symbol="AAPL", market="US", asset_type="stock", position=7)
+        self.assertEqual(self.client.post("/api/stocks/order/", {"ids": []}, format="json").status_code, 403)
+        self.login()
+        mine = self.add("VOO", "US").json()["id"]
+        self.assertEqual(self.client.post("/api/stocks/order/", {"ids": [theirs.pk, mine]}, format="json").status_code, 204)
+        theirs.refresh_from_db()
+        self.assertEqual(theirs.position, 7)
+        for junk in ({"ids": "1,2"}, {"ids": [1, "2"]}, {"ids": [True]}, {}):
+            self.assertEqual(self.client.post("/api/stocks/order/", junk, format="json").status_code, 400)
+
     def test_users_only_see_and_delete_their_own(self):
         other = User.objects.create_user("other", password="pw")
         theirs = TrackedStock.objects.create(user=other, symbol="AAPL", market="US", asset_type="stock")
