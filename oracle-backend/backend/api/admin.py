@@ -1,14 +1,15 @@
 from django.contrib import admin
 from django.utils.html import format_html
 
-from .models import Experience, Mortgage, Profile, Project, ProjectTag, SocialLink, Skill, Stat, Tag
+from .models import Experience, Profile, Project, ProjectTag, SocialLink, Skill, Stat, Tag, TrackedStock
 
 
-@admin.register(Mortgage)
-class MortgageAdmin(admin.ModelAdmin):
-    list_display = ('id', 'data')
-    search_fields = ('data',)
-    ordering = ('id',)
+@admin.register(TrackedStock)
+class TrackedStockAdmin(admin.ModelAdmin):
+    list_display = ('symbol', 'name', 'market', 'asset_type', 'user', 'created_at')
+    list_filter = ('market', 'asset_type', 'user')
+    search_fields = ('symbol', 'name')
+    ordering = ('user', 'symbol')
 
 
 @admin.register(Profile)

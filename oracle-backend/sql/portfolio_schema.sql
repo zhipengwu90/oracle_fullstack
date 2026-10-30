@@ -4,8 +4,8 @@
 -- Postgres database Django uses, with your session's search_path pointing
 -- at whatever schema DB_SCHEMA is set to (see oracle-backend/backend/.env
 -- and the repo-root .env used by docker-compose) - same convention as the
--- existing "mortgage" and "topics" tables. Table names below are NOT
--- schema-qualified on purpose, exactly like those two.
+-- existing "topics" table. Table names below are NOT
+-- schema-qualified on purpose, exactly like that one.
 --
 -- Run portfolio_seed.sql right after this to populate real starter content.
 --

@@ -2,7 +2,6 @@ from rest_framework import serializers
 
 from .models import (
     Experience,
-    Mortgage,
     Profile,
     Project,
     SocialLink,
@@ -10,13 +9,15 @@ from .models import (
     Stat,
     Tag,
     Topic,
+    TrackedStock,
 )
 
 
-class MortgageSerializer(serializers.ModelSerializer):
+class TrackedStockSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Mortgage
-        fields = ['id', 'data']
+        model = TrackedStock
+        fields = ['id', 'symbol', 'market', 'asset_type', 'name', 'created_at']
+        read_only_fields = fields
 
 
 class PublicTopicSerializer(serializers.ModelSerializer):
