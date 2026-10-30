@@ -3,7 +3,10 @@
 -- deploying the code that uses them (older code just ignores them).
 -- Idempotent: safe to re-run.
 --
---   sudo -u postgres psql -d myapp -c "SET ROLE wuz" -c "SET search_path TO myapp_v1" -f sql/topics_upgrade.sql
+--   ( echo "SET ROLE wuz; SET search_path TO myapp_v1, public;"; cat sql/topics_upgrade.sql ) | sudo -u postgres psql -d myapp -v ON_ERROR_STOP=1
+--
+--   (Piped, not -f: the postgres user can't read files under /home/ubuntu.
+--   "public" is where Django's auth_user lives.)
 
 -- Link back to the original post (filled by `manage.py collect_topics`).
 ALTER TABLE topics ADD COLUMN IF NOT EXISTS url varchar;

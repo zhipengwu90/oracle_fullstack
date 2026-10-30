@@ -2,7 +2,10 @@
 -- Prices are not stored; the API fetches them live from Yahoo Finance.
 -- Idempotent: safe to re-run. Run it BEFORE deploying the code that uses it.
 --
---   sudo -u postgres psql -d myapp -c "SET ROLE wuz" -c "SET search_path TO myapp_v1" -f sql/stocks_schema.sql
+--   ( echo "SET ROLE wuz; SET search_path TO myapp_v1, public;"; cat sql/stocks_schema.sql ) | sudo -u postgres psql -d myapp -v ON_ERROR_STOP=1
+--
+--   (Piped, not -f: the postgres user can't read files under /home/ubuntu.
+--   "public" is where Django's auth_user lives.)
 --
 -- auth_user lives in "public" and is found through the search_path
 -- fallback, same as Django itself finds it.
