@@ -1,4 +1,3 @@
-import json
 from datetime import date, timedelta
 from unittest import mock
 
@@ -6,8 +5,8 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from . import topic_sources
-from .models import Mortgage, Topic
+from . import stock_quotes, topic_sources
+from .models import Topic, TrackedStock
 
 
 class LoggedInTestCase(TestCase):
@@ -26,24 +25,93 @@ class HealthTests(TestCase):
         self.assertEqual(res.json()["database"], "ok")
 
 
-class MortgageApiTests(LoggedInTestCase):
+def fake_quote(symbol, exchange, instrument_type="EQUITY", name=None):
+    return {
+        "symbol": symbol, "name": name or symbol, "exchange": exchange, "exchange_name": exchange,
+        "instrument_type": instrument_type, "currency": "CAD" if "." in symbol else "USD",
+        "price": 10.0, "change": 0.5, "change_percent": 5.263, "day_high": 10.2, "day_low": 9.6,
+        "year_high": 12.0, "year_low": 8.0, "volume": 1000, "market_time": 0, "history": [9.5, 10.0],
+    }
+
+
+class StockApiTests(LoggedInTestCase):
+    # Yahoo is faked: symbol -> quote, anything else is unknown.
+    QUOTES = {
+        "SHOP.TO": fake_quote("SHOP.TO", "TOR", name="Shopify Inc."),
+        "XIC.TO": fake_quote("XIC.TO", "TOR", "ETF"),
+        "AAPL": fake_quote("AAPL", "NMS"),
+        "VOO": fake_quote("VOO", "PCX", "ETF"),
+        "BTC-USD": fake_quote("BTC-USD", "CCC", "CRYPTOCURRENCY"),
+    }
+
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch.object(stock_quotes, "get_quote", side_effect=self.QUOTES.get)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def add(self, symbol, market):
+        return self.client.post("/api/stocks/", {"symbol": symbol, "market": market}, format="json")
+
     def test_anonymous_cannot_read_or_write(self):
-        Mortgage.objects.create(data="private")
-        self.assertEqual(self.client.get("/api/mortgages/").status_code, 403)
-        self.assertEqual(self.client.post("/api/mortgages/", {"data": "{}"}).status_code, 403)
+        self.assertEqual(self.client.get("/api/stocks/").status_code, 403)
+        self.assertEqual(self.add("AAPL", "US").status_code, 403)
+        self.assertEqual(self.client.get("/api/stocks/search/?q=apple").status_code, 403)
 
-    def test_save_list_and_delete_scenario(self):
+    def test_add_list_and_remove(self):
         self.login()
-        scenario = json.dumps({"name": "Starter home", "price": 500000})
-        res = self.client.post("/api/mortgages/", {"data": scenario}, format="json")
+        res = self.add("aapl", "US")
         self.assertEqual(res.status_code, 201)
-        new_id = res.json()["id"]
+        self.assertEqual((res.json()["symbol"], res.json()["asset_type"]), ("AAPL", "stock"))
+        self.assertEqual(self.add("VOO", "US").json()["asset_type"], "etf")
 
-        rows = self.client.get("/api/mortgages/").json()
-        self.assertEqual([r["data"] for r in rows], [scenario])
+        rows = self.client.get("/api/stocks/").json()
+        self.assertEqual([r["symbol"] for r in rows], ["AAPL", "VOO"])
+        self.assertEqual(rows[0]["quote"]["price"], 10.0)
 
-        self.assertEqual(self.client.delete(f"/api/mortgages/{new_id}/").status_code, 204)
-        self.assertFalse(Mortgage.objects.exists())
+        self.assertEqual(self.client.delete(f"/api/stocks/{rows[0]['id']}/").status_code, 204)
+        self.assertEqual(list(TrackedStock.objects.values_list("symbol", flat=True)), ["VOO"])
+
+    def test_canadian_bare_ticker_resolves_to_exchange_listing(self):
+        self.login()
+        res = self.add("SHOP", "CA")
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual((res.json()["symbol"], res.json()["name"]), ("SHOP.TO", "Shopify Inc."))
+        self.assertEqual(self.add("XIC", "CA").json()["asset_type"], "etf")
+
+    def test_rejects_unknown_wrong_market_duplicates_and_non_stocks(self):
+        self.login()
+        self.assertIn("No stock or ETF", self.add("ZZZZ", "US").json()["error"])
+        self.assertIn("trades in Canada", self.add("SHOP.TO", "US").json()["error"])
+        self.assertIn("only stocks and ETFs", self.add("BTC-USD", "US").json()["error"])
+        self.assertEqual(self.add("AAPL", "EU").status_code, 400)
+        self.assertEqual(self.add("AAPL", "US").status_code, 201)
+        self.assertIn("already tracking", self.add("AAPL", "US").json()["error"])
+        self.assertEqual(TrackedStock.objects.count(), 1)
+
+    def test_users_only_see_and_delete_their_own(self):
+        other = User.objects.create_user("other", password="pw")
+        theirs = TrackedStock.objects.create(user=other, symbol="AAPL", market="US", asset_type="stock")
+        self.login()
+        self.assertEqual(self.client.get("/api/stocks/").json(), [])
+        self.assertEqual(self.client.delete(f"/api/stocks/{theirs.pk}/").status_code, 404)
+        # Same symbol is fine for a different user.
+        self.assertEqual(self.add("AAPL", "US").status_code, 201)
+
+    def test_search_keeps_stocks_and_etfs_on_the_chosen_market(self):
+        self.login()
+        yahoo = {"quotes": [
+            {"symbol": "SHOP", "quoteType": "EQUITY", "exchange": "NMS", "longname": "Shopify Inc."},
+            {"symbol": "SHOP.TO", "quoteType": "EQUITY", "exchange": "TOR", "exchDisp": "Toronto"},
+            {"symbol": "SHPE.TO", "quoteType": "ETF", "exchange": "TOR"},
+            {"symbol": "SHOP.MX", "quoteType": "EQUITY", "exchange": "MEX"},
+            {"symbol": "SHOP260116C00100000", "quoteType": "OPTION", "exchange": "OPR"},
+        ]}
+        with mock.patch.object(stock_quotes, "_get_json", return_value=yahoo):
+            ca = self.client.get("/api/stocks/search/?q=shop&market=CA").json()
+            both = self.client.get("/api/stocks/search/?q=shop").json()
+        self.assertEqual([(r["symbol"], r["asset_type"]) for r in ca], [("SHOP.TO", "stock"), ("SHPE.TO", "etf")])
+        self.assertEqual([r["symbol"] for r in both], ["SHOP", "SHOP.TO", "SHPE.TO"])
 
 
 class TopicApiTests(LoggedInTestCase):

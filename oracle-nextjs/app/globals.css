@@ -40,3 +40,13 @@ body {
 ::selection {
   background: color-mix(in srgb, var(--accent) 30%, transparent);
 }
+
+/* Stocks page: a price that just changed flashes green (up) or red (down). */
+@keyframes flash-up {
+  from { background-color: color-mix(in srgb, #10b981 35%, transparent); }
+}
+@keyframes flash-down {
+  from { background-color: color-mix(in srgb, #ef4444 35%, transparent); }
+}
+.flash-up { animation: flash-up 1.5s ease-out; }
+.flash-down { animation: flash-down 1.5s ease-out; }

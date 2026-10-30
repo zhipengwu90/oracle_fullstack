@@ -1,36 +1,18 @@
 from django.db import models
 
 
-class Mortgage(models.Model):
-    """
-    Maps to the existing "mortgage" table in the myapp_v1 schema.
-
-    managed = False -> Django never creates/alters/drops this table via
-    migrations; it only reads/writes rows. The bare db_table = 'mortgage'
-    resolves to myapp_v1.mortgage through the connection search_path
-    (DB_SCHEMA=myapp_v1, set in settings.py / .env).
-
-    id is BigAutoField (not BigIntegerField) because the column is
-    GENERATED ALWAYS AS IDENTITY: an auto field is left out of INSERTs so
-    Postgres assigns it; sending an explicit value would be rejected.
-
-    data holds one saved calculator scenario as a JSON string (older rows
-    may be free text - readers must tolerate that).
-    """
-    id = models.BigAutoField(primary_key=True)
-    data = models.TextField(blank=True, null=True)
-
-    class Meta:
-        managed = False
-        db_table = 'mortgage'
-
-
 class Topic(models.Model):
     """
     Maps to the existing "topics" table in the myapp_v1 schema.
 
-    managed = False, and tp_id is an identity column, same reasoning as
-    Mortgage above. url and the ai_* queue columns were added by
+    managed = False -> Django never creates/alters/drops this table via
+    migrations; it only reads/writes rows. The bare db_table = 'topics'
+    resolves to myapp_v1.topics through the connection search_path
+    (DB_SCHEMA=myapp_v1, set in settings.py / .env).
+
+    tp_id is BigAutoField (not BigIntegerField) because the column is an
+    identity column: an auto field is left out of INSERTs so Postgres
+    assigns it. url and the ai_* queue columns were added by
     sql/topics_upgrade.sql.
 
     "Ask AI" is a queue, not a live call: the API sets ai_status='pending',
@@ -57,10 +39,41 @@ class Topic(models.Model):
         db_table = 'topics'
 
 
+class TrackedStock(models.Model):
+    """
+    Maps to "stock_watch" (created by sql/stocks_schema.sql): one row per
+    symbol a logged-in user follows on the Stocks page. Prices are never
+    stored - they're fetched live (see stock_quotes.py).
+
+    symbol is the Yahoo Finance ticker: Canadian listings carry an exchange
+    suffix (SHOP.TO, XIC.TO, ...), US ones don't (AAPL, VOO).
+    """
+    MARKET_CA = 'CA'
+    MARKET_US = 'US'
+    TYPE_STOCK = 'stock'
+    TYPE_ETF = 'etf'
+
+    id = models.BigAutoField(primary_key=True)
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, db_column='user_id')
+    symbol = models.CharField(max_length=20)
+    market = models.CharField(max_length=2)
+    asset_type = models.CharField(max_length=10)
+    name = models.CharField(max_length=200, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'stock_watch'
+        unique_together = (('user', 'symbol'),)
+
+    def __str__(self):
+        return self.symbol
+
+
 # ---------------------------------------------------------------------------
 # Portfolio content. All tables created by hand via sql/portfolio_schema.sql
 # (see that file) and edited through Django Admin, not manage.py migrate -
-# same managed = False convention as Mortgage/Topic above.
+# same managed = False convention as Topic above.
 # ---------------------------------------------------------------------------
 
 class Profile(models.Model):

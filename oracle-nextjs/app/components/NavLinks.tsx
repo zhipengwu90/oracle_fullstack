@@ -60,11 +60,11 @@ function MenuLinks({
   return (
     <>
       <Link
-        href="/calculator"
+        href="/stocks"
         onClick={onNavigate}
-        className={navLinkClass(pathname === "/calculator")}
+        className={navLinkClass(pathname === "/stocks")}
       >
-        Calculator
+        Stocks
       </Link>
       {/* Django Admin isn't a Next.js route - a plain <a> forces a full
           navigation instead of Next's client-side router, which has no

@@ -11,11 +11,11 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Experience, Mortgage, Profile, Project, SocialLink, Skill, Stat, Topic
+from . import stock_quotes
+from .models import Experience, Profile, Project, SocialLink, Skill, Stat, Topic, TrackedStock
 from .topic_sources import collect_topics
 from .serializers import (
     ExperienceSerializer,
-    MortgageSerializer,
     ProfileSerializer,
     PublicTopicSerializer,
     ProjectSerializer,
@@ -23,6 +23,7 @@ from .serializers import (
     SkillSerializer,
     StatSerializer,
     TopicSerializer,
+    TrackedStockSerializer,
 )
 
 
@@ -111,24 +112,84 @@ def logout_view(request):
     return Response({"authenticated": False})
 
 
-class MortgageListView(generics.ListCreateAPIView):
+def _with_quotes(stocks):
+    """Serialize watchlist rows with their live quote attached under "quote"."""
+    quotes = stock_quotes.get_quotes([s.symbol for s in stocks])
+    rows = TrackedStockSerializer(stocks, many=True).data
+    for row in rows:
+        row['quote'] = quotes.get(row['symbol'])
+    return rows
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def stock_list(request):
     """
-    GET  /api/mortgages/ -> saved calculator scenarios, oldest first.
-    POST /api/mortgages/ {"data": "<JSON string>"} -> save a scenario.
+    GET  /api/stocks/ -> the logged-in user's watchlist, each row with a live
+         "quote" (null if Yahoo no longer knows the symbol, {"error": ...} if
+         the fetch failed).
+    POST /api/stocks/ {"symbol": "SHOP", "market": "CA"|"US"} -> start
+         tracking it. The symbol is checked against Yahoo first; for Canada a
+         bare ticker is resolved to its exchange listing (SHOP -> SHOP.TO).
+         Stock vs ETF and the name come from Yahoo, not the client.
 
-    Login required: the Calculator page is members-only, and so is its data.
+    Each user only ever sees and edits their own list.
     """
-    queryset = Mortgage.objects.all().order_by('id')
-    serializer_class = MortgageSerializer
-    permission_classes = [IsAuthenticated]
-    pagination_class = None
+    if request.method == 'GET':
+        stocks = TrackedStock.objects.filter(user=request.user).order_by('market', 'symbol')
+        return Response(_with_quotes(stocks))
+
+    market = request.data.get('market')
+    if market not in (TrackedStock.MARKET_CA, TrackedStock.MARKET_US):
+        return Response({"error": "Choose Canada or US."}, status=400)
+    try:
+        quote = stock_quotes.lookup(request.data.get('symbol'), market)
+    except stock_quotes.SymbolError as exc:
+        return Response({"error": str(exc)}, status=400)
+    except (OSError, ValueError) as exc:
+        return Response({"error": f"Couldn't reach Yahoo Finance: {exc}"}, status=502)
+
+    stock, created = TrackedStock.objects.get_or_create(
+        user=request.user,
+        symbol=quote['symbol'],
+        defaults={
+            'market': market,
+            'asset_type': stock_quotes.ASSET_TYPES[quote['instrument_type']],
+            'name': (quote['name'] or '')[:200] or None,
+        },
+    )
+    if not created:
+        return Response({"error": f"You're already tracking {stock.symbol}."}, status=400)
+    row = TrackedStockSerializer(stock).data
+    row['quote'] = quote
+    return Response(row, status=201)
 
 
-class MortgageDetailView(generics.DestroyAPIView):
-    """DELETE /api/mortgages/<id>/ -> remove a saved scenario."""
-    queryset = Mortgage.objects.all()
-    serializer_class = MortgageSerializer
+class StockDetailView(generics.DestroyAPIView):
+    """DELETE /api/stocks/<id>/ -> stop tracking. Other users' rows 404."""
+    serializer_class = TrackedStockSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return TrackedStock.objects.filter(user=self.request.user)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def stock_search(request):
+    """
+    GET /api/stocks/search/?q=shopify&market=CA -> up to 10 matching stocks
+    and ETFs on that market (both markets if market is omitted), for the
+    add box's suggestions.
+    """
+    q = (request.query_params.get('q') or '').strip()
+    if not q:
+        return Response([])
+    market = request.query_params.get('market') or None
+    try:
+        return Response(stock_quotes.search(q[:50], market))
+    except (OSError, ValueError) as exc:
+        return Response({"error": f"Couldn't reach Yahoo Finance: {exc}"}, status=502)
 
 
 TOPICS_PAGE_SIZE = 30

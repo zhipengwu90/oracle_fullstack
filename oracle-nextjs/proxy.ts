@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 // Add/remove page paths here to control what requires login.
 // Everything NOT listed here stays public.
-const PROTECTED_PATHS = ["/calculator"];
+const PROTECTED_PATHS = ["/stocks"];
 
 // Keep this in sync with PROTECTED_PATHS above (Next.js needs the matcher
 // to be statically written out, it can't be built from an array at runtime).
 export const config = {
-  matcher: ["/calculator/:path*"],
+  matcher: ["/stocks/:path*"],
 };
 
 export async function proxy(request: NextRequest) {
