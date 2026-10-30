@@ -20,6 +20,7 @@ export type Quote = {
   year_low: number | null;
   market_time: number | null; // unix seconds
   history: number[]; // ~1 month of daily closes
+  source: "finnhub" | "yahoo"; // finnhub = real-time (US only), yahoo = a few minutes behind
 };
 
 // One row of GET /api/stocks/. quote is null if Yahoo no longer knows the
@@ -498,10 +499,16 @@ export default function StockTracker({ initialRows }: { initialRows: StockRow[] 
                           </span>
                           {q.market_time != null && (
                             <div
-                              title={stale ? "Yahoo hasn't reported a newer trade - market closed, halted or thinly traded" : "Time of the last trade Yahoo reported"}
+                              title={
+                                stale
+                                  ? "No newer trade reported - market closed, halted or thinly traded"
+                                  : q.source === "finnhub"
+                                    ? "Real-time price from Finnhub"
+                                    : "From Yahoo Finance, usually a few minutes behind"
+                              }
                               className={`text-[11px] ${stale ? "text-amber-600 dark:text-amber-400" : "text-foreground/40"}`}
                             >
-                              {quoteTime(q.market_time, updatedAt)}
+                              {quoteTime(q.market_time, updatedAt)} · {q.source === "finnhub" ? "live" : "delayed"}
                             </div>
                           )}
                         </td>

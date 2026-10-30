@@ -1,7 +1,13 @@
 """
-Live quotes and symbol search for the Stocks page, from Yahoo Finance.
+Live quotes and symbol search for the Stocks page.
 
-Yahoo's chart and search endpoints need no API key. Symbols are Yahoo
+Everything comes from Yahoo Finance (chart and search endpoints, no API
+key), which runs a few minutes behind. When FINNHUB_API_KEY is set, US
+symbols also get Finnhub's real-time price/change/day range laid over the
+Yahoo quote; Finnhub's free plan has no Canadian data, so Canada stays
+on Yahoo. Any Finnhub failure (rate limit, outage) falls back to Yahoo.
+
+Symbols are Yahoo
 tickers: Canadian listings carry an exchange suffix (SHOP.TO on the TSX,
 .V on the TSX Venture, .NE on Cboe Canada, .CN on the CSE); US listings
 have none (AAPL, VOO, BRK-B).
@@ -17,9 +23,14 @@ import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
+from django.conf import settings
+
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) wuapp-stocks/1.0"
 TIMEOUT = 10  # seconds per HTTP request
 CACHE_SECONDS = 15  # quotes are shared across users; don't hit Yahoo on every poll
+
+# Free plan: 60 calls/minute. After a 429, leave Finnhub alone for a bit.
+FINNHUB_BACKOFF_SECONDS = 60
 
 CA_SUFFIXES = (".TO", ".V", ".NE", ".CN")
 US_EXCHANGES = {"NMS", "NGM", "NCM", "NYQ", "ASE", "PCX", "BTS"}
@@ -30,14 +41,15 @@ SYMBOL_RE = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,19}$")
 
 _cache = {}
 _cache_lock = threading.Lock()
+_finnhub_paused_until = 0.0
 
 
 class SymbolError(Exception):
     """A symbol that doesn't exist, isn't a stock/ETF, or is on the wrong market."""
 
 
-def _get_json(url):
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+def _get_json(url, headers=None):
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, **(headers or {})})
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as res:
             return json.loads(res.read())
@@ -64,7 +76,7 @@ def normalize(symbol):
     return symbol
 
 
-def _fetch_quote(symbol):
+def _fetch_yahoo_quote(symbol):
     """One symbol's quote plus ~1 month of daily closes for a sparkline."""
     data = _get_json(
         "https://query1.finance.yahoo.com/v8/finance/chart/"
@@ -105,7 +117,52 @@ def _fetch_quote(symbol):
         "volume": meta.get("regularMarketVolume"),
         "market_time": meta.get("regularMarketTime"),
         "history": closes,
+        "source": "yahoo",
     }
+
+
+def _finnhub_quote(symbol):
+    """
+    Finnhub's real-time fields for a US symbol, or None when Finnhub isn't
+    configured, is cooling off after a rate limit, or doesn't know it.
+    The key goes in a header, not the URL, so it never lands in logs.
+    """
+    global _finnhub_paused_until
+    if not settings.FINNHUB_API_KEY or time.monotonic() < _finnhub_paused_until:
+        return None
+    try:
+        q = _get_json(
+            "https://finnhub.io/api/v1/quote?" + urllib.parse.urlencode({"symbol": symbol}),
+            headers={"X-Finnhub-Token": settings.FINNHUB_API_KEY},
+        )
+    except urllib.error.HTTPError as exc:
+        if exc.code == 429:
+            _finnhub_paused_until = time.monotonic() + FINNHUB_BACKOFF_SECONDS
+        return None
+    except (OSError, ValueError):
+        return None
+    # Unknown symbols come back as all zeros rather than an error.
+    if not q.get("c") or not q.get("t"):
+        return None
+    return {
+        "price": q["c"],
+        "change": round(q["d"], 4) if q.get("d") is not None else None,
+        "change_percent": round(q["dp"], 3) if q.get("dp") is not None else None,
+        "day_high": q.get("h") or None,
+        "day_low": q.get("l") or None,
+        "market_time": q["t"],
+        "source": "finnhub",
+    }
+
+
+def _fetch_quote(symbol):
+    """Yahoo's quote, with Finnhub's real-time fields on top for US symbols."""
+    quote = _fetch_yahoo_quote(symbol)
+    if quote and market_of(quote["symbol"], quote["exchange"]) == "US":
+        live = _finnhub_quote(quote["symbol"])
+        if live:
+            quote.update(live)
+    return quote
 
 
 def get_quote(symbol):

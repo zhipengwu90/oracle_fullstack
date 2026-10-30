@@ -14,9 +14,9 @@ export default async function Stocks() {
     <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-12">
       <h1 className="mb-1 text-3xl font-extrabold tracking-tight">Stocks</h1>
       <p className="mb-8 text-sm text-foreground/60">
-        Your watchlist of Canadian and US stocks and ETFs. Prices come from Yahoo Finance,
-        refresh every 15 seconds, and usually run a few minutes behind the exchange. Times are
-        Pacific.
+        Your watchlist of Canadian and US stocks and ETFs, refreshed every 15 seconds. US prices
+        are real-time from Finnhub; Canadian prices come from Yahoo Finance and usually run a few
+        minutes behind. Times are Pacific.
       </p>
 
       {error && (

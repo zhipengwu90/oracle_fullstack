@@ -5,7 +5,10 @@
 -- still queries the table). Back the rows up first if you want to keep them:
 --
 --   sudo -u postgres pg_dump -d myapp -t 'myapp_v1.mortgage' -t 'myapp_v1.mortgate_*' > mortgage_backup.sql
---   sudo -u postgres psql -d myapp -c "SET ROLE wuz" -c "SET search_path TO myapp_v1" -f sql/drop_mortgage.sql
+--   ( echo "SET ROLE wuz; SET search_path TO myapp_v1, public;"; cat sql/drop_mortgage.sql ) | sudo -u postgres psql -d myapp -v ON_ERROR_STOP=1
+--
+--   (Piped, not -f: the postgres user can't read files under /home/ubuntu.
+--   "public" is where Django's auth_user lives.)
 
 DROP TABLE IF EXISTS mortgage;
 DROP TABLE IF EXISTS mortgate_info;
