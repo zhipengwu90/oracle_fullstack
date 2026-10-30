@@ -37,6 +37,12 @@ jobs:
             echo "==> Cleaning up old images"
             docker image prune -f
 
+            # --build leaves layers in the build cache that image prune never
+            # touches (it had grown to 7 GB). Keep the last week's so deploys
+            # stay fast; anything older is just disk.
+            echo "==> Cleaning up old build cache"
+            docker builder prune -f --filter until=168h
+
             echo "==> Status"
             docker compose ps
 
