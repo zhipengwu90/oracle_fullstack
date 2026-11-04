@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 
-from .models import Experience, Profile, Project, ProjectTag, SocialLink, Skill, Stat, Tag, TrackedStock
+from .models import Experience, Profile, Project, ProjectTag, SocialLink, Skill, Stat, StockHolding, Tag, TrackedStock
 
 
 @admin.register(TrackedStock)
@@ -10,6 +10,14 @@ class TrackedStockAdmin(admin.ModelAdmin):
     list_filter = ('market', 'asset_type', 'user')
     search_fields = ('symbol', 'name')
     ordering = ('user', 'symbol')
+
+
+@admin.register(StockHolding)
+class StockHoldingAdmin(admin.ModelAdmin):
+    list_display = ('symbol', 'shares', 'price', 'bought_on', 'market', 'user')
+    list_filter = ('market', 'user')
+    search_fields = ('symbol', 'name')
+    ordering = ('user', 'symbol', 'bought_on')
 
 
 @admin.register(Profile)

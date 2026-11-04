@@ -7,7 +7,7 @@ from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from . import stock_quotes, topic_sources
-from .models import Topic, TrackedStock
+from .models import StockHolding, Topic, TrackedStock
 
 
 class LoggedInTestCase(TestCase):
@@ -33,6 +33,95 @@ def fake_quote(symbol, exchange, instrument_type="EQUITY", name=None):
         "price": 10.0, "change": 0.5, "change_percent": 5.263, "day_high": 10.2, "day_low": 9.6,
         "year_high": 12.0, "year_low": 8.0, "volume": 1000, "market_time": 0, "history": [9.5, 10.0],
     }
+
+
+class HoldingApiTests(LoggedInTestCase):
+    QUOTES = {
+        "SHOP.TO": fake_quote("SHOP.TO", "TOR", name="Shopify Inc."),
+        "XIC.TO": fake_quote("XIC.TO", "TOR", "ETF"),
+        "AAPL": fake_quote("AAPL", "NMS"),
+    }
+
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch.object(stock_quotes, "get_quote", side_effect=self.QUOTES.get)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def buy(self, symbol="AAPL", market="US", shares="10", price="8.50", **extra):
+        body = {"symbol": symbol, "market": market, "shares": shares, "price": price, **extra}
+        return self.client.post("/api/stocks/holdings/", body, format="json")
+
+    def test_requires_login(self):
+        self.assertEqual(self.client.get("/api/stocks/holdings/").status_code, 403)
+        self.assertEqual(self.buy().status_code, 403)
+
+    def test_one_symbol_can_have_several_purchases(self):
+        self.login()
+        self.assertEqual(self.buy(shares="10", price="8.50", bought_on="2026-01-15").status_code, 201)
+        self.assertEqual(self.buy(shares="2.5", price="12").status_code, 201)
+        rows = self.client.get("/api/stocks/holdings/").json()
+        self.assertEqual(
+            [(r["symbol"], r["shares"], r["price"], r["bought_on"]) for r in rows],
+            [("AAPL", "10.000000", "8.500000", "2026-01-15"), ("AAPL", "2.500000", "12.000000", None)],
+        )
+        self.assertEqual(rows[0]["quote"]["price"], 10.0)
+
+    def test_listing_details_come_from_yahoo_not_the_client(self):
+        self.login()
+        res = self.buy("shop", "CA", name="Fake", asset_type="etf")
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(
+            (res.json()["symbol"], res.json()["name"], res.json()["asset_type"]),
+            ("SHOP.TO", "Shopify Inc.", "stock"),
+        )
+
+    def test_rejects_bad_purchases(self):
+        self.login()
+        future = (date.today() + timedelta(days=2)).isoformat()
+        for bad in (
+            self.buy(shares="0"),
+            self.buy(shares="-1"),
+            self.buy(price="0"),
+            self.buy(price="abc"),
+            self.buy(bought_on=future),
+            self.buy(market="UK"),
+            self.buy("ZZZZ"),
+        ):
+            self.assertEqual(bad.status_code, 400)
+        self.assertEqual(StockHolding.objects.count(), 0)
+
+    def test_edit_changes_the_purchase_but_not_the_listing(self):
+        self.login()
+        pk = self.buy().json()["id"]
+        res = self.client.patch(
+            f"/api/stocks/holdings/{pk}/", {"shares": "20", "bought_on": "2026-02-01", "symbol": "VOO"}, format="json",
+        )
+        self.assertEqual(res.status_code, 200)
+        holding = StockHolding.objects.get(pk=pk)
+        self.assertEqual((holding.symbol, holding.shares, holding.bought_on), ("AAPL", 20, date(2026, 2, 1)))
+        bad = self.client.patch(f"/api/stocks/holdings/{pk}/", {"price": "-3"}, format="json")
+        self.assertEqual(bad.status_code, 400)
+
+    def test_users_only_touch_their_own_holdings(self):
+        other = User.objects.create_user("other", password="pw")
+        theirs = StockHolding.objects.create(user=other, symbol="AAPL", market="US", asset_type="stock", shares=1, price=1)
+        self.login()
+        self.assertEqual(self.client.get("/api/stocks/holdings/").json(), [])
+        url = f"/api/stocks/holdings/{theirs.pk}/"
+        self.assertEqual(self.client.patch(url, {"shares": "5"}, format="json").status_code, 404)
+        self.assertEqual(self.client.delete(url).status_code, 404)
+        theirs.refresh_from_db()
+        self.assertEqual(theirs.shares, 1)
+
+    def test_delete_and_unwatching_are_independent(self):
+        self.login()
+        keep = self.buy().json()["id"]
+        drop = self.buy().json()["id"]
+        watched = self.client.post("/api/stocks/", {"symbol": "AAPL", "market": "US"}, format="json").json()["id"]
+        self.assertEqual(self.client.delete(f"/api/stocks/{watched}/").status_code, 204)
+        self.assertEqual(self.client.delete(f"/api/stocks/holdings/{drop}/").status_code, 204)
+        self.assertEqual(list(StockHolding.objects.values_list("id", flat=True)), [keep])
 
 
 class StockApiTests(LoggedInTestCase):

@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+from django.utils import timezone
 from rest_framework import serializers
 
 from .models import (
@@ -7,6 +10,7 @@ from .models import (
     SocialLink,
     Skill,
     Stat,
+    StockHolding,
     Tag,
     Topic,
     TrackedStock,
@@ -18,6 +22,29 @@ class TrackedStockSerializer(serializers.ModelSerializer):
         model = TrackedStock
         fields = ['id', 'symbol', 'market', 'asset_type', 'name', 'position', 'created_at']
         read_only_fields = fields
+
+
+class StockHoldingSerializer(serializers.ModelSerializer):
+    """The client only sets the purchase; which listing it is comes from Yahoo."""
+    shares = serializers.DecimalField(
+        max_digits=18, decimal_places=6, min_value=Decimal('0.000001'),
+        error_messages={'min_value': 'Shares must be more than zero.', 'invalid': 'Shares must be a number.'},
+    )
+    price = serializers.DecimalField(
+        max_digits=18, decimal_places=6, min_value=Decimal('0.000001'),
+        error_messages={'min_value': 'Price must be more than zero.', 'invalid': 'Price must be a number.'},
+    )
+
+    class Meta:
+        model = StockHolding
+        fields = ['id', 'symbol', 'market', 'asset_type', 'name', 'shares', 'price', 'bought_on', 'created_at']
+        read_only_fields = ['id', 'symbol', 'market', 'asset_type', 'name', 'created_at']
+
+    def validate_bought_on(self, value):
+        # The server runs on UTC, which is never behind the user's own date.
+        if value and value > timezone.localdate():
+            raise serializers.ValidationError('The purchase date is in the future.')
+        return value
 
 
 class PublicTopicSerializer(serializers.ModelSerializer):

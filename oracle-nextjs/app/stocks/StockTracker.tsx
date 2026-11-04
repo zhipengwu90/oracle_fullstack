@@ -2,29 +2,24 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { csrfHeaders } from "../lib/csrf";
+import {
+  Badge,
+  LiveStatus,
+  MarketToggle,
+  REFRESH_MS,
+  SymbolInput,
+  TIME_ZONE,
+  changeColor,
+  errorMessage,
+  hasQuote,
+  money,
+  signed,
+  type AssetType,
+  type Market,
+  type RowQuote,
+} from "./shared";
 
-type Market = "CA" | "US";
-type AssetType = "stock" | "etf";
-
-export type Quote = {
-  symbol: string;
-  name: string | null;
-  exchange_name: string | null;
-  currency: string | null;
-  price: number | null;
-  change: number | null;
-  change_percent: number | null;
-  day_high: number | null;
-  day_low: number | null;
-  year_high: number | null;
-  year_low: number | null;
-  market_time: number | null; // unix seconds
-  history: number[]; // ~1 month of daily closes
-  source: "finnhub" | "yahoo"; // finnhub = real-time (US only), yahoo = a few minutes behind
-};
-
-// One row of GET /api/stocks/. quote is null if Yahoo no longer knows the
-// symbol, or {error} if fetching it failed this time.
+// One row of GET /api/stocks/.
 export type StockRow = {
   id: number;
   symbol: string;
@@ -33,71 +28,16 @@ export type StockRow = {
   name: string | null;
   position: number;
   created_at: string;
-  quote: Quote | { error: string } | null;
+  quote: RowQuote;
 };
 
-type Suggestion = {
-  symbol: string;
-  name: string | null;
-  exchange: string | null;
-  market: Market;
-  asset_type: AssetType;
-};
-
-const REFRESH_MS = 15_000; // matches the backend's quote cache
 const STALE_MS = 20 * 60_000; // Yahoo is normally 1-3 minutes behind; flag anything much older
-const SEARCH_DELAY_MS = 300;
-
-const MARKETS: { value: Market; label: string }[] = [
-  { value: "CA", label: "🇨🇦 Canada" },
-  { value: "US", label: "🇺🇸 US" },
-];
-
-async function errorMessage(res: Response) {
-  try {
-    const data = await res.json();
-    return data.error ?? data.detail ?? `Request failed (${res.status})`;
-  } catch {
-    return `Request failed (${res.status})`;
-  }
-}
-
-function hasQuote(q: StockRow["quote"]): q is Quote {
-  return !!q && !("error" in q);
-}
 
 function priceMap(rows: StockRow[]) {
   return new Map(rows.map((r) => [r.id, hasQuote(r.quote) ? r.quote.price : null]));
 }
 
-function money(value: number | null, currency: string | null) {
-  if (value === null) return "—";
-  // en-CA writes USD as "US$", which keeps the two currencies apart at a glance.
-  return new Intl.NumberFormat("en-CA", {
-    style: "currency",
-    currency: currency ?? "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: value < 1 ? 4 : 2,
-  }).format(value);
-}
-
-function signed(value: number, digits = 2) {
-  return `${value > 0 ? "+" : ""}${value.toFixed(digits)}`;
-}
-
-function changeColor(value: number | null) {
-  if (!value) return "text-foreground/60";
-  return value > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400";
-}
-
-// All times are shown in Pacific time. Pinning the zone also makes the
-// server render (UTC) and the browser render agree.
-const TIME_ZONE = "America/Vancouver";
 const dayKey = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: TIME_ZONE });
-
-function clockTime(d: Date) {
-  return d.toLocaleTimeString("en-US", { timeZone: TIME_ZONE, hour: "numeric", minute: "2-digit", second: "2-digit" });
-}
 
 // "12:19:42 PM PDT", or "Oct 29, 1:00 PM PDT" when it isn't from today (market closed).
 function quoteTime(unixSeconds: number, now: Date) {
@@ -156,58 +96,11 @@ function RangeBar({ low, high, value, currency }: { low: number | null; high: nu
   );
 }
 
-function Badge({ children, tone }: { children: React.ReactNode; tone: "accent" | "muted" }) {
-  return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-[11px] font-medium uppercase ${
-        tone === "accent" ? "bg-accent/15 text-accent" : "bg-foreground/10 text-foreground/70"
-      }`}
-    >
-      {children}
-    </span>
-  );
-}
-
 function AddStock({ onAdded }: { onAdded: (row: StockRow) => void }) {
   const [market, setMarket] = useState<Market>("CA");
   const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [highlight, setHighlight] = useState(-1);
-  const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const boxRef = useRef<HTMLDivElement>(null);
-
-  // Suggest as you type, after a short pause; a newer keystroke cancels the older request.
-  useEffect(() => {
-    const q = query.trim();
-    if (!q) return;
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      try {
-        const params = new URLSearchParams({ q, market });
-        const res = await fetch(`/api/stocks/search/?${params}`, { signal: controller.signal });
-        if (!res.ok) return;
-        setSuggestions(await res.json());
-        setHighlight(-1);
-      } catch {
-        // Aborted or offline - the Add button still works with the typed symbol.
-      }
-    }, SEARCH_DELAY_MS);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [query, market]);
-
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(e: PointerEvent) {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
 
   async function add(symbol: string) {
     if (!symbol.trim()) return;
@@ -222,8 +115,6 @@ function AddStock({ onAdded }: { onAdded: (row: StockRow) => void }) {
       if (!res.ok) throw new Error(await errorMessage(res));
       onAdded(await res.json());
       setQuery("");
-      setSuggestions([]);
-      setOpen(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -231,101 +122,19 @@ function AddStock({ onAdded }: { onAdded: (row: StockRow) => void }) {
     }
   }
 
-  // Enter adds the highlighted suggestion; otherwise the typed ticker if it is
-  // one (SHOP, SHOP.TO), else the top suggestion - so "Telus" + Enter adds T.TO.
-  function enterSymbol() {
-    if (!showList) return query;
-    if (highlight >= 0) return suggestions[highlight].symbol;
-    const typed = query.trim().toUpperCase();
-    const exact = suggestions.find((s) => s.symbol === typed || s.symbol.split(".")[0] === typed);
-    return exact ? query : suggestions[0].symbol;
-  }
-
-  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setOpen(true);
-      setHighlight((h) => Math.min(h + 1, suggestions.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setHighlight((h) => Math.max(h - 1, -1));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      add(enterSymbol());
-    } else if (e.key === "Escape") {
-      setOpen(false);
-    }
-  }
-
-  // Stale suggestions from an earlier query stay hidden once the box is cleared.
-  const showList = open && query.trim() !== "" && suggestions.length > 0;
-
   return (
-    <div className="mb-8 rounded-lg border border-foreground/10 p-4">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        add(query);
+      }}
+      className="mb-8 rounded-lg border border-foreground/10 p-4"
+    >
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex rounded-md border border-foreground/20 p-0.5 text-sm" role="group" aria-label="Market">
-          {MARKETS.map((m) => (
-            <button
-              key={m.value}
-              type="button"
-              onClick={() => setMarket(m.value)}
-              aria-pressed={market === m.value}
-              className={`rounded px-3 py-1.5 whitespace-nowrap ${
-                market === m.value ? "bg-accent/15 font-medium text-accent" : "text-foreground/70 hover:text-foreground"
-              }`}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
-
-        <div ref={boxRef} className="relative min-w-0 flex-1">
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setOpen(true);
-            }}
-            onFocus={() => setOpen(true)}
-            onKeyDown={onKeyDown}
-            placeholder={market === "CA" ? "Ticker or name, e.g. SHOP, XEQT, Royal Bank" : "Ticker or name, e.g. AAPL, VOO, Microsoft"}
-            role="combobox"
-            aria-expanded={showList}
-            aria-controls="stock-suggestions"
-            aria-autocomplete="list"
-            className="w-full rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm focus:border-accent focus:outline-none"
-          />
-          {showList && (
-            <ul
-              id="stock-suggestions"
-              role="listbox"
-              className="absolute top-full right-0 left-0 z-20 mt-1 max-h-80 overflow-auto rounded-md border border-foreground/15 bg-background py-1 shadow-lg"
-            >
-              {suggestions.map((s, i) => (
-                <li key={s.symbol} role="option" aria-selected={i === highlight}>
-                  <button
-                    type="button"
-                    onClick={() => add(s.symbol)}
-                    onMouseEnter={() => setHighlight(i)}
-                    className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${
-                      i === highlight ? "bg-foreground/5" : ""
-                    }`}
-                  >
-                    <span className="w-24 shrink-0 font-semibold">{s.symbol}</span>
-                    <span className="min-w-0 flex-1 truncate text-foreground/70">{s.name}</span>
-                    <span className="hidden text-xs text-foreground/50 sm:inline">{s.exchange}</span>
-                    <Badge tone={s.asset_type === "etf" ? "accent" : "muted"}>{s.asset_type}</Badge>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
+        <MarketToggle market={market} onChange={setMarket} />
+        <SymbolInput market={market} value={query} onChange={setQuery} onPick={add} />
         <button
-          type="button"
-          onClick={() => add(query)}
+          type="submit"
           disabled={adding || !query.trim()}
           className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-80 disabled:opacity-40"
         >
@@ -338,7 +147,7 @@ function AddStock({ onAdded }: { onAdded: (row: StockRow) => void }) {
           : "NYSE, NASDAQ and NYSE Arca listings."}
       </p>
       {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
-    </div>
+    </form>
   );
 }
 
@@ -494,19 +303,7 @@ export default function StockTracker({ initialRows }: { initialRows: StockRow[] 
             {t === "all" ? "All types" : t === "stock" ? "Stocks" : "ETFs"} ({count(marketFilter, t)})
           </button>
         ))}
-        <button
-          type="button"
-          onClick={refresh}
-          disabled={refreshing}
-          className="ml-auto text-foreground/60 hover:text-foreground disabled:opacity-50"
-        >
-          <span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 align-middle ${refreshing ? "animate-ping" : ""}`} />
-          {refreshing ? "Updating…" : "Live"}
-          {/* Server and browser render this a moment apart. */}
-          <span suppressHydrationWarning className="ml-2 text-xs text-foreground/40">
-            checked {clockTime(updatedAt)} PT
-          </span>
-        </button>
+        <LiveStatus refreshing={refreshing} updatedAt={updatedAt} onClick={refresh} />
       </div>
 
       {error && (

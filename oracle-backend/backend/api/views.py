@@ -12,7 +12,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from . import stock_quotes
-from .models import Experience, Profile, Project, SocialLink, Skill, Stat, Topic, TrackedStock
+from .models import Experience, Profile, Project, SocialLink, Skill, Stat, StockHolding, Topic, TrackedStock
 from .topic_sources import collect_topics
 from .serializers import (
     ExperienceSerializer,
@@ -22,6 +22,7 @@ from .serializers import (
     SocialLinkSerializer,
     SkillSerializer,
     StatSerializer,
+    StockHoldingSerializer,
     TopicSerializer,
     TrackedStockSerializer,
 )
@@ -112,10 +113,10 @@ def logout_view(request):
     return Response({"authenticated": False})
 
 
-def _with_quotes(stocks):
-    """Serialize watchlist rows with their live quote attached under "quote"."""
+def _with_quotes(stocks, serializer=TrackedStockSerializer):
+    """Serialize watchlist or holding rows with their live quote attached under "quote"."""
     quotes = stock_quotes.get_quotes([s.symbol for s in stocks])
-    rows = TrackedStockSerializer(stocks, many=True).data
+    rows = serializer(stocks, many=True).data
     for row in rows:
         row['quote'] = quotes.get(row['symbol'])
     return rows
@@ -193,6 +194,59 @@ class StockDetailView(generics.DestroyAPIView):
 
     def get_queryset(self):
         return TrackedStock.objects.filter(user=self.request.user)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def holding_list(request):
+    """
+    GET  /api/stocks/holdings/ -> the logged-in user's purchases, each with a
+         live "quote" (same shape as the watchlist's). Gain/loss is worked out
+         by the client, so it moves with every poll.
+    POST /api/stocks/holdings/ {"symbol": "SHOP", "market": "CA"|"US",
+         "shares": "10", "price": "120.50", "bought_on": "2026-03-01"|null}
+         -> record one purchase. Call it again for each further buy of the
+         same symbol. The symbol is resolved as in stock_list.
+    """
+    if request.method == 'GET':
+        holdings = StockHolding.objects.filter(user=request.user).order_by('symbol', 'bought_on', 'id')
+        return Response(_with_quotes(holdings, StockHoldingSerializer))
+
+    serializer = StockHoldingSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    market = request.data.get('market')
+    if market not in (TrackedStock.MARKET_CA, TrackedStock.MARKET_US):
+        return Response({"error": "Choose Canada or US."}, status=400)
+    try:
+        quote = stock_quotes.lookup(request.data.get('symbol'), market)
+    except stock_quotes.SymbolError as exc:
+        return Response({"error": str(exc)}, status=400)
+    except (OSError, ValueError) as exc:
+        return Response({"error": f"Couldn't reach Yahoo Finance: {exc}"}, status=502)
+
+    holding = serializer.save(
+        user=request.user,
+        symbol=quote['symbol'],
+        market=market,
+        asset_type=stock_quotes.ASSET_TYPES[quote['instrument_type']],
+        name=(quote['name'] or '')[:200] or None,
+    )
+    row = StockHoldingSerializer(holding).data
+    row['quote'] = quote
+    return Response(row, status=201)
+
+
+class HoldingDetailView(generics.UpdateAPIView, generics.DestroyAPIView):
+    """
+    PATCH  /api/stocks/holdings/<id>/ {"shares", "price", "bought_on"} -> correct a purchase.
+    DELETE /api/stocks/holdings/<id>/ -> remove it. Other users' rows 404.
+    """
+    http_method_names = ['patch', 'delete']
+    serializer_class = StockHoldingSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return StockHolding.objects.filter(user=self.request.user)
 
 
 @api_view(['GET'])
