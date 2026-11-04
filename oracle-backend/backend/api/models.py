@@ -71,6 +71,32 @@ class TrackedStock(models.Model):
         return self.symbol
 
 
+class StockHolding(models.Model):
+    """
+    Maps to "stock_holding" (created by sql/stocks_schema.sql): one row per
+    purchase a user entered on the Stocks page's My holdings tab, so one
+    symbol can have many rows at different prices. Independent of
+    TrackedStock. price is per share, in the listing's currency.
+    """
+    id = models.BigAutoField(primary_key=True)
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, db_column='user_id')
+    symbol = models.CharField(max_length=20)
+    market = models.CharField(max_length=2)
+    asset_type = models.CharField(max_length=10)
+    name = models.CharField(max_length=200, blank=True, null=True)
+    shares = models.DecimalField(max_digits=18, decimal_places=6)
+    price = models.DecimalField(max_digits=18, decimal_places=6)
+    bought_on = models.DateField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'stock_holding'
+
+    def __str__(self):
+        return f'{self.symbol} x {self.shares}'
+
+
 # ---------------------------------------------------------------------------
 # Portfolio content. All tables created by hand via sql/portfolio_schema.sql
 # (see that file) and edited through Django Admin, not manage.py migrate -
