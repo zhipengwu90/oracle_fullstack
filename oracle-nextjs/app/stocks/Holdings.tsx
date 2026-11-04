@@ -278,14 +278,15 @@ export default function Holdings({ initialRows }: { initialRows: HoldingRow[] })
               className={`mt-1 ${inputClass}`}
             />
           </label>
-          {/* Safari and Chrome on iPad draw date inputs wider than a narrow column. */}
-          <label className="col-span-2 min-w-0 text-xs text-foreground/60 sm:col-span-1">
+          {/* iPad browsers ignore a date input's width unless its native look is off; that also
+              collapses it when empty and centers the value, hence the fixed height and text-left. */}
+          <label className="col-span-2 min-w-0 overflow-hidden text-xs text-foreground/60 sm:col-span-1">
             Bought on (optional)
             <input
               type="date"
               value={draft.boughtOn}
               onChange={(e) => setDraft({ ...draft, boughtOn: e.target.value })}
-              className={`mt-1 ${inputClass}`}
+              className={`mt-1 block h-[38px] appearance-none text-left [&::-webkit-date-and-time-value]:text-left ${inputClass}`}
             />
           </label>
           <div className="col-span-2 mt-1 flex gap-2 sm:col-span-3 sm:justify-end">
