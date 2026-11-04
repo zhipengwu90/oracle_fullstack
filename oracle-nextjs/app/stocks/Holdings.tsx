@@ -133,7 +133,7 @@ function GainLoss({ gain, cost, currency }: { gain: number | null; cost: number;
 }
 
 const inputClass =
-  "w-full rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm focus:border-accent focus:outline-none";
+  "w-full min-w-0 rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm focus:border-accent focus:outline-none";
 
 export default function Holdings({ initialRows }: { initialRows: HoldingRow[] }) {
   const [rows, setRows] = useState(initialRows);
@@ -251,8 +251,8 @@ export default function Holdings({ initialRows }: { initialRows: HoldingRow[] })
             />
           </div>
         )}
-        <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-4">
-          <label className="text-xs text-foreground/60">
+        <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-3">
+          <label className="min-w-0 text-xs text-foreground/60">
             Shares
             <input
               type="number"
@@ -265,7 +265,7 @@ export default function Holdings({ initialRows }: { initialRows: HoldingRow[] })
               className={`mt-1 ${inputClass}`}
             />
           </label>
-          <label className="text-xs text-foreground/60">
+          <label className="min-w-0 text-xs text-foreground/60">
             Price per share
             <input
               type="number"
@@ -278,7 +278,8 @@ export default function Holdings({ initialRows }: { initialRows: HoldingRow[] })
               className={`mt-1 ${inputClass}`}
             />
           </label>
-          <label className="text-xs text-foreground/60">
+          {/* Safari and Chrome on iPad draw date inputs wider than a narrow column. */}
+          <label className="col-span-2 min-w-0 text-xs text-foreground/60 sm:col-span-1">
             Bought on (optional)
             <input
               type="date"
@@ -287,11 +288,11 @@ export default function Holdings({ initialRows }: { initialRows: HoldingRow[] })
               className={`mt-1 ${inputClass}`}
             />
           </label>
-          <div className="flex gap-2">
+          <div className="col-span-2 mt-1 flex gap-2 sm:col-span-3 sm:justify-end">
             <button
               type="submit"
               disabled={saving || (draft.id === null && !draft.symbol.trim())}
-              className="flex-1 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-80 disabled:opacity-40"
+              className="flex-1 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-80 disabled:opacity-40 sm:flex-none"
             >
               {saving ? "Saving…" : draft.id === null ? "Add purchase" : "Save"}
             </button>
